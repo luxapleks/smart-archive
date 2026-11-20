@@ -6,6 +6,7 @@ import { addCategory, canExport, getEml, readCurrentMail } from "./mail";
 import { buildAttachments, buildFiles, toBase64 } from "./build";
 import {
   ensurePermission,
+  getFavorites,
   getRoot,
   hasPermission,
   listFolders,
@@ -14,7 +15,9 @@ import {
   rememberPath,
   rememberedPath,
   saveToDirectory,
+  setFavorites,
   setRoot,
+  type Favorite,
   type FolderEntry,
   type SaveResult,
 } from "./fsaccess";
@@ -49,12 +52,17 @@ const f = {
   results: $<HTMLUListElement>("folder-results"),
   archive: $<HTMLButtonElement>("archive"),
   pickOther: $<HTMLButtonElement>("pick-other"),
+  addFav: $<HTMLButtonElement>("add-fav"),
   hint: $("save-hint"),
 };
 
 interface Option {
-  path: string;
+  /** "p:<pad>" voor een klantmap in de archiefmap, "f:<id>" voor een losse favoriet */
+  key: string;
+  label: string;
   reason: string;
+  path?: string;
+  fav?: Favorite;
 }
 
 let mail: MailInfo | null = null;
@@ -67,6 +75,7 @@ let busy = false;
 let root: FileSystemDirectoryHandle | null = null;
 let folders: FolderEntry[] | null = null; // klantmappen, één keer per sessie ingelezen
 let options: Option[] = [];
+let favorites: Favorite[] = [];
 
 /* ------------------------------------------------------------ helpers */
 
@@ -136,11 +145,11 @@ function attachmentNames(): string[] {
 
 function setBusy(text: string | null) {
   busy = text !== null;
-  const needsChoice = !!root && folders !== null && !selectedPath();
-  f.archive.disabled = busy || needsChoice || (!!root && folders === null);
+  const panelMode = !!root || favorites.length > 0;
+  f.archive.disabled = busy || (panelMode && !selectedOption());
   f.pickOther.disabled = busy;
   f.unlock.disabled = busy;
-  f.archive.textContent = busy ? text! : root ? "Opslaan" : "Map kiezen en opslaan…";
+  f.archive.textContent = busy ? text! : panelMode ? "Opslaan" : "Map kiezen en opslaan…";
 }
 
 function showWarning(text: string) {
@@ -162,8 +171,10 @@ function updateHint() {
 function renderRootState() {
   f.rootMissing.hidden = !!root || !pickerAvailable();
   f.rootLocked.hidden = !root || folders !== null;
-  f.folderArea.hidden = !root || folders === null;
-  f.pickOther.hidden = !pickerAvailable() || !root;
+  f.folderArea.hidden = !((root && folders !== null) || favorites.length);
+  f.search.parentElement!.hidden = !(root && folders !== null);
+  f.addFav.hidden = !pickerAvailable();
+  f.pickOther.hidden = !pickerAvailable() || !(root || favorites.length);
   if (root) f.unlock.innerHTML = `Klantmappen in <b>${escapeHtml(root.name)}</b> openen`;
   setBusy(busy ? f.archive.textContent : null);
 }
@@ -181,55 +192,123 @@ async function openRoot(ask: boolean): Promise<boolean> {
   return true;
 }
 
+const favKey = (fav: Favorite) => (fav.path !== undefined ? `p:${fav.path}` : `f:${fav.id}`);
+const isFav = (path: string) => favorites.some((x) => x.path === path);
+
 async function buildFolderOptions() {
-  if (!mail || !folders) return;
-  const known = new Set(folders.map((x) => x.path));
+  if (!mail) return;
   const out: Option[] = [];
+  const add = (o: Option) => {
+    if (!out.some((x) => x.key === o.key)) out.push(o);
+  };
+  const known = new Set((folders ?? []).map((x) => x.path));
   const other = counterpart();
   const rem = await rememberedPath(other?.address);
-  if (rem && known.has(rem.path)) {
-    out.push({ path: rem.path, reason: rem.byDomain ? "Eerder gekozen voor dit domein" : "Eerder gekozen voor deze contactpersoon" });
+  const remReason = rem?.byDomain ? "Eerder gekozen voor dit domein" : "Eerder gekozen voor deze contactpersoon";
+
+  // Voorstellen: eerdere keuze + trefwoorden (alleen als de klantmappen ingelezen zijn)
+  const sugg: Option[] = [];
+  if (rem) {
+    if (rem.path.startsWith("fav:")) {
+      const fav = favorites.find((x) => `fav:${x.id}` === rem.path);
+      if (fav) sugg.push({ key: favKey(fav), label: fav.label, reason: remReason, fav, path: fav.path });
+    } else if (known.has(rem.path)) sugg.push({ key: `p:${rem.path}`, label: rem.path, reason: remReason, path: rem.path });
   }
-  const scored = scoreFolders([...known], {
-    subject: mail.subject,
-    body: mail.body,
-    senderDomain: other?.address?.split("@")[1],
-    names: [other?.name ?? "", ...mail.to.map((t) => t.name ?? "")],
-  }).filter((x) => x.score > 0);
-  for (const sc of scored) {
-    if (out.length >= 3) break;
-    if (!out.some((o) => o.path === sc.path)) out.push({ path: sc.path, reason: "Naam komt overeen met de mail" });
+  if (folders) {
+    const scored = scoreFolders([...known], {
+      subject: mail.subject,
+      body: mail.body,
+      senderDomain: other?.address?.split("@")[1],
+      names: [other?.name ?? "", ...mail.to.map((t) => t.name ?? "")],
+    }).filter((x) => x.score > 0);
+    for (const sc of scored) {
+      if (sugg.length >= 3) break;
+      if (!sugg.some((o) => o.path === sc.path)) sugg.push({ key: `p:${sc.path}`, label: sc.path, reason: "Naam komt overeen met de mail", path: sc.path });
+    }
+  }
+  sugg.forEach(add);
+  // Favorieten daarna (zonder dubbelingen)
+  for (const fav of favorites) {
+    add({ key: favKey(fav), label: fav.label, reason: fav.handle ? "Favoriet (buiten archiefmap)" : "Favoriet", fav, path: fav.path });
   }
   options = out;
   renderOptions();
 }
 
-function renderOptions(selected?: string) {
-  f.suggestions.innerHTML = options.length ? "" : `<p class="empty">Geen voorstel — zoek de klantmap hieronder.</p>`;
+function renderOptions(selectedKey?: string) {
+  f.suggestions.innerHTML = "";
+  if (!options.length) {
+    if (folders) f.suggestions.innerHTML = `<p class="empty">Geen voorstel — zoek de klantmap hieronder.</p>`;
+    setBusy(null);
+    return;
+  }
+  let lastGroup = "";
   options.forEach((o, i) => {
+    const group = o.reason.startsWith("Favoriet") ? "Favorieten" : "Voorstellen";
+    if (group !== lastGroup) {
+      const h = document.createElement("p");
+      h.className = "group-title";
+      h.textContent = group;
+      f.suggestions.appendChild(h);
+      lastGroup = group;
+    }
+    const starred = o.fav !== undefined || (o.path !== undefined && isFav(o.path));
     const label = document.createElement("label");
     label.className = "option";
     label.innerHTML = `
       <input type="radio" name="folder" value="${i}">
-      <span class="path">${pathHtml(o.path)}</span>
-      <span class="conf"></span>
+      <span class="path">${pathHtml(o.label)}</span>
+      <button type="button" class="star${starred ? " on" : ""}" title="${starred ? "Uit favorieten halen" : "Aan favorieten toevoegen"}">${starred ? "★" : "☆"}</button>
       <span class="reason">${escapeHtml(o.reason)}</span>`;
     const input = label.querySelector("input")!;
-    input.checked = selected ? o.path === selected : i === 0;
+    input.checked = selectedKey ? o.key === selectedKey : i === 0;
     input.addEventListener("change", () => setBusy(null));
+    label.querySelector<HTMLButtonElement>(".star")!.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      void toggleFavorite(o);
+    });
     f.suggestions.appendChild(label);
   });
   setBusy(null);
 }
 
-function selectedPath(): string {
+function selectedOption(): Option | undefined {
   const c = f.suggestions.querySelector<HTMLInputElement>("input[name=folder]:checked");
-  return c ? options[Number(c.value)]?.path ?? "" : "";
+  return c ? options[Number(c.value)] : undefined;
+}
+
+async function toggleFavorite(o: Option) {
+  const keep = selectedOption()?.key;
+  if (o.fav) favorites = favorites.filter((x) => x.id !== o.fav!.id);
+  else if (o.path !== undefined && isFav(o.path)) favorites = favorites.filter((x) => x.path !== o.path);
+  else if (o.path !== undefined) favorites = [...favorites, { id: crypto.randomUUID(), label: o.path, path: o.path }];
+  favorites.sort((a, b) => a.label.localeCompare(b.label, "nl"));
+  await setFavorites(favorites);
+  await buildFolderOptions();
+  if (keep && options.some((x) => x.key === keep)) renderOptions(keep);
+  renderRootState();
+}
+
+/** Map buiten de archiefmap als favoriet toevoegen (Verkenner-venster). */
+async function addOutsideFavorite() {
+  try {
+    const h = await pickDirectory();
+    const fav: Favorite = { id: crypto.randomUUID(), label: h.name, handle: h };
+    favorites = [...favorites, fav].sort((a, b) => a.label.localeCompare(b.label, "nl"));
+    await setFavorites(favorites);
+    await buildFolderOptions();
+    renderOptions(favKey(fav));
+    renderRootState();
+  } catch (e: any) {
+    if (e?.name !== "AbortError") showWarning(e?.message ?? String(e));
+  }
 }
 
 function pick(path: string) {
-  options = [{ path, reason: "Zelf gekozen" }, ...options.filter((o) => o.path !== path)];
-  renderOptions(path);
+  const o: Option = { key: `p:${path}`, label: path, reason: "Zelf gekozen", path };
+  options = [o, ...options.filter((x) => x.key !== o.key)];
+  renderOptions(o.key);
   f.search.value = "";
   f.results.hidden = true;
 }
@@ -247,10 +326,20 @@ function onSearch() {
     .sort((a, b) => a.length - b.length)
     .slice(0, 30);
   f.results.innerHTML = hits.length
-    ? hits.map((p, i) => `<li role="option" data-i="${i}">${pathHtml(p)}</li>`).join("")
+    ? hits
+        .map((p, i) => `<li role="option" data-i="${i}"><span>${pathHtml(p)}</span><button type="button" class="star${isFav(p) ? " on" : ""}" data-star="${i}" title="Favoriet">${isFav(p) ? "★" : "☆"}</button></li>`)
+        .join("")
     : `<li aria-disabled="true">Geen klantmap gevonden</li>`;
   f.results.hidden = false;
   f.results.querySelectorAll<HTMLLIElement>("li[data-i]").forEach((li) => li.addEventListener("click", () => pick(hits[Number(li.dataset.i)])));
+  f.results.querySelectorAll<HTMLButtonElement>("button[data-star]").forEach((b) =>
+    b.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const p = hits[Number(b.dataset.star)];
+      await toggleFavorite({ key: `p:${p}`, label: p, reason: "", path: p });
+      onSearch();
+    }),
+  );
 }
 
 /* --------------------------------------------------------------- laden */
@@ -279,14 +368,15 @@ async function load() {
     updateHint();
 
     root ??= (await getRoot()) ?? null;
+    favorites = await getFavorites();
     if (seq !== loadSeq) return;
     options = [];
     f.suggestions.innerHTML = "";
     // Al toestemming (eerder deze sessie)? Dan direct de mappen tonen, zonder melding
     if (root && folders === null) await openRoot(false).catch(() => false);
     if (seq !== loadSeq) return;
+    await buildFolderOptions();
     renderRootState();
-    if (folders) await buildFolderOptions();
 
     if (current !== "settings") show("form");
   } catch (e: any) {
@@ -296,7 +386,7 @@ async function load() {
 
 /* ---------------------------------------------------------- opslaan */
 
-async function saveInto(dir: FileSystemDirectoryHandle, relPath?: string) {
+async function saveInto(dir: FileSystemDirectoryHandle, relPath?: string, favId?: string) {
   if (!mail) return;
   setBusy("Mail ophalen…");
   const eml = await getEml();
@@ -306,6 +396,7 @@ async function saveInto(dir: FileSystemDirectoryHandle, relPath?: string) {
   const extras = await buildAttachments(eml, opts);
   setBusy(extras.length ? `Opslaan (mail + ${extras.length} bijlage${extras.length > 1 ? "n" : ""})…` : "Opslaan…");
   const res = await saveToDirectory(dir, stem(), files, subfolder(), extras);
+  if (favId) await rememberPath(counterpart()?.address, `fav:${favId}`);
   if (relPath !== undefined && root) {
     await rememberPath(counterpart()?.address, relPath);
     // "Prospects\ACME\Information\Inbound" i.p.v. alleen "ACME\Information\Inbound"
@@ -327,22 +418,36 @@ async function finish(res: SaveResult) {
   show("done");
 }
 
-/** Hoofdknop: opslaan in de gekozen klantmap, of (zonder archiefmap) via Verkenner. */
+/** Hoofdknop: opslaan in de gekozen klantmap/favoriet, of (zonder archiefmap) via Verkenner. */
 async function onSave(ev?: Event) {
   ev?.preventDefault();
   if (!mail) return;
   f.warning.hidden = canExport();
-  if (!root) return pickAndSave();
+  const opt = selectedOption();
+  if (!root && !favorites.length) return pickAndSave();
+  if (!opt) {
+    showWarning("Kies eerst een klantmap.");
+    return;
+  }
   try {
+    // Losse favoriet buiten de archiefmap: eigen toestemming
+    if (opt.fav?.handle) {
+      if (!(await ensurePermission(opt.fav.handle as any))) {
+        showWarning("Geen toestemming voor die map.");
+        return;
+      }
+      await saveInto(opt.fav.handle, undefined, opt.fav.id);
+      return;
+    }
     if (!(await openRoot(true))) {
       showWarning("Geen toestemming voor de archiefmap.");
       return;
     }
-    const entry = folders?.find((x) => x.path === selectedPath());
+    const entry = folders?.find((x) => x.path === opt.path);
     if (!entry) {
-      renderRootState();
       await buildFolderOptions();
-      showWarning("Kies eerst een klantmap.");
+      renderRootState();
+      showWarning(`Map '${opt.label}' niet gevonden in ${root?.name ?? "de archiefmap"}. Kies opnieuw.`);
       return;
     }
     await saveInto(entry.handle, entry.path);
@@ -352,8 +457,8 @@ async function onSave(ev?: Event) {
       folders = null; // map verplaatst/verwijderd: opnieuw inlezen
       showWarning("Die map bestaat niet meer. De lijst is opnieuw ingelezen; kies opnieuw.");
       await openRoot(false).catch(() => false);
-      renderRootState();
       await buildFolderOptions();
+      renderRootState();
     } else showWarning(e?.message ?? String(e));
   }
 }
@@ -383,8 +488,8 @@ async function chooseRoot(): Promise<boolean> {
     root = h;
     folders = null;
     await openRoot(true);
-    renderRootState();
     await buildFolderOptions();
+    renderRootState();
     updateHint();
     return true;
   } catch (e: any) {
@@ -510,6 +615,7 @@ Office.onReady(() => {
   f.search.addEventListener("input", onSearch);
   sections.form.addEventListener("submit", (e) => void onSave(e));
   f.pickOther.addEventListener("click", () => void pickAndSave());
+  f.addFav.addEventListener("click", () => void addOutsideFavorite());
   $("choose-root").addEventListener("click", () => void chooseRoot());
   f.unlock.addEventListener("click", async () => {
     try {

@@ -240,7 +240,26 @@ export async function listFolders(root: FileSystemDirectoryHandle, depth = 1, ca
   return out.sort((a, b) => a.path.localeCompare(b.path, "nl"));
 }
 
-/** Gekozen klantmap (pad t.o.v. de root) per afzender en domein onthouden. */
+/* --------------------------------------------------------- favorieten */
+
+/** Favoriet: een klantmap binnen de archiefmap (path) of een losse map elders (handle). */
+export interface Favorite {
+  id: string;
+  label: string;
+  path?: string;
+  handle?: FileSystemDirectoryHandle;
+}
+
+export async function getFavorites(): Promise<Favorite[]> {
+  const v = await idb<Favorite[]>("readonly", (s) => s.get("favorites"));
+  return Array.isArray(v) ? v : [];
+}
+
+export async function setFavorites(list: Favorite[]): Promise<void> {
+  await idb("readwrite", (s) => s.put(list, "favorites"));
+}
+
+/** Gekozen klantmap (pad t.o.v. de root, of "fav:<id>") per afzender en domein onthouden. */
 export async function rememberPath(address: string | undefined, path: string) {
   const k = keysFor(address);
   for (const key of [k.address, k.domain]) if (key) await idb("readwrite", (s) => s.put(path, `p${key}`));
