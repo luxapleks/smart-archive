@@ -1,5 +1,5 @@
 {
-  "name": "slim-archiveren-lite",
+  "name": "smart-archive",
   "version": "0.1.0",
   "description": "Outlook-add-in: mails archiveren met een duidelijke bestandsnaam en mapvoorstel, volledig lokaal (geen server, geen AI)",
   "scripts": {

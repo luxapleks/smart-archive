@@ -1,3 +1,5 @@
+# Bouwt de add-in en publiceert hem op GitHub Pages.
+# Na de eerste run staat het manifest op: https://<naam>.github.io/<repo>/manifest.xml
 name: Publiceren op GitHub Pages
 
 on:
