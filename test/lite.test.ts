@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { orgFromDomain, personLabel, shortName, suggestParts } from "../src/shared/labels.ts";
+import { orgFromDomain, personLabel, recipientsLabel, shortName, suggestParts } from "../src/shared/labels.ts";
 import { buildFileName } from "../src/shared/naming.ts";
 
 test("organisation from domain", () => {
@@ -41,7 +41,7 @@ test("parts for received and sent mail", () => {
     to: [{ name: "Niemeijer, Alexander", address: me }, { name: "Anna Bakker", address: "anna@acme.nl" }],
     cc: [], date: "2026-11-09T23:30:00Z", body: "Beste Anna,\n\nHierbij de waarderingsrapportage Q3.\n", me,
   });
-  assert.equal(sent.to, "ABakker e.a.");
+  assert.equal(sent.to, "Niemeijer,Bakker");
   assert.equal(sent.title, "Hierbij de waarderingsrapportage Q3.");
   assert.equal(sent.date, "2026-11-10");
 });
@@ -49,4 +49,21 @@ test("parts for received and sent mail", () => {
 
 test("arrow template drops cleanly when recipient is empty", () => {
   assert.equal(buildFileName({ date: "261120", from: "JdeVries", to: "", title: "T" }, "msg"), "261120 - JdeVries - T.msg");
+});
+
+test("multiple recipients: surnames of first three, .etc when more", () => {
+  const p = (name: string) => ({ name, address: name.split(" ")[0].toLowerCase() + "@x.nl" });
+  assert.equal(recipientsLabel([p("Jürgen de Vries")]), "JdeVries");
+  assert.equal(recipientsLabel([p("Jürgen de Vries"), p("Piet Jansen")]), "deVries,Jansen");
+  assert.equal(recipientsLabel([p("Jürgen de Vries"), p("Piet Jansen"), p("Anna Bakker")]), "deVries,Jansen,Bakker");
+  assert.equal(recipientsLabel([p("Jürgen de Vries"), p("Piet Jansen"), p("Anna Bakker"), p("Kees Smit")]), "deVries,Jansen,Bakker.etc");
+  assert.equal(recipientsLabel([{ address: "piet.van.den.berg@acme.nl" }, { name: "Niemeijer, Alexander", address: "a@b.nl" }]), "vandenBerg,Niemeijer");
+  assert.equal(recipientsLabel([]), "");
+});
+
+test("file name with several recipients", () => {
+  assert.equal(
+    buildFileName({ date: "261120", from: "JdeVries", to: "Jansen,Bakker,Smit.etc", title: "Offerte" }, "msg"),
+    "261120 - JdeVries→Jansen,Bakker,Smit.etc - Offerte.msg",
+  );
 });

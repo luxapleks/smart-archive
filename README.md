@@ -12,7 +12,7 @@ Sla een mail op als bestand met een naam die wél iets zegt, in de goede map:
 
 1. **Bestandsnaam**: `datum - afzender - ontvanger - onderwerp`, met de datum standaard als `jjmmdd` en een pijl tussen afzender en ontvanger: `261120 - JdeVries→ANiemeijer - onderwerp`
    - RE:/FW:/Antw:/Doorst:/[EXTERN] worden weggehaald; is het onderwerp leeg, dan wordt de eerste zin van de mail gebruikt.
-   - Namen worden ingekort tot voorletter + achternaam zonder spaties: `Jürgen de Vries` → `JdeVries`, "Niemeijer, Alexander" → `ANiemeijer`.
+   - Namen worden ingekort tot voorletter + achternaam zonder spaties: `Jürgen de Vries` → `JdeVries`, "Niemeijer, Alexander" → `ANiemeijer`. Bij meer ontvangers (cc telt niet mee): alleen de achternamen van de eerste drie, bij meer dan drie gevolgd door `.etc`, bv. `deVries,Jansen,Bakker.etc`.
    - "Jansen, Piet" wordt "Piet Jansen". Bij verzonden mail wordt de externe ontvanger gekozen.
    - Tekens die Windows/SharePoint weigeren worden verwijderd; de naam is maximaal 150 tekens.
    - Alles is aan te passen; de naam wordt live getoond.

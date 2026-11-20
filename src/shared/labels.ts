@@ -47,28 +47,52 @@ function prettifyLocalPart(local: string): string {
  * "Jürgen de Vries" -> "JdeVries", "Jan Pieter van den Berg" -> "JvandenBerg",
  * "Anna Jansen-Bakker" -> "AJansen-Bakker". Eén woord blijft zoals het is.
  */
-export function shortName(full: string): string {
+function splitName(full: string): { first: string; surname: string } {
   const clean = (full ?? "")
     .replace(/\s*[([{].*?[)\]}]\s*/g, " ") // "(Extern)", "[Rabobank]"
     .replace(/\s+[|–—]\s+.*$/, "") // "Piet Jansen | Rabobank"
     .replace(/\s+-\s+.*$/, "")
     .trim();
   const words = clean.split(/\s+/).filter(Boolean);
-  if (words.length <= 1) return words[0] ?? "";
+  if (words.length <= 1) return { first: "", surname: words[0] ?? "" };
   // Achternaam begint bij het eerste tussenvoegsel na de voornaam, anders het laatste woord
   let start = words.findIndex((w, i) => i > 0 && SMALL.has(w.toLowerCase()));
   if (start < 0) start = words.length - 1;
   const surname = words.slice(start).map((w, i, arr) =>
     i < arr.length - 1 && SMALL.has(w.toLowerCase()) ? w.toLowerCase() : w.charAt(0).toUpperCase() + w.slice(1),
   );
-  return words[0].charAt(0).toUpperCase() + surname.join("");
+  return { first: words[0], surname: surname.join("") };
+}
+
+export function shortName(full: string): string {
+  const { first, surname } = splitName(full);
+  return first.charAt(0).toUpperCase() + surname;
+}
+
+/** Alleen de achternaam, aan elkaar: "Jürgen de Vries" -> "deVries". */
+export function surnameOnly(full: string): string {
+  return splitName(full).surname;
+}
+
+function displayName(p: Person): string {
+  const name = labelFromAddress(p.name, p.address);
+  return !p.name || p.name.includes("@") ? prettifyLocalPart(name) : name;
+}
+
+/**
+ * Ontvangers voor de bestandsnaam (cc telt niet mee):
+ * één ontvanger -> "ANiemeijer"; meer -> achternamen van de eerste drie
+ * ("deVries,Jansen,Bakker"), bij meer dan drie gevolgd door ".etc".
+ */
+export function recipientsLabel(to: Person[]): string {
+  if (to.length <= 1) return to[0] ? personLabel(to[0]) : "";
+  const names = to.slice(0, 3).map((p) => surnameOnly(displayName(p))).filter(Boolean);
+  return names.join(",") + (to.length > 3 ? ".etc" : "");
 }
 
 export function personLabel(p: Person | undefined): string {
   if (!p) return "";
-  let name = labelFromAddress(p.name, p.address);
-  if (!p.name || p.name.includes("@")) name = prettifyLocalPart(name);
-  return shortName(name);
+  return shortName(displayName(p));
 }
 
 export interface MailInfo {
@@ -93,14 +117,8 @@ function titleFromBody(body: string): string {
 }
 
 export function suggestParts(m: MailInfo, timeZone = "Europe/Amsterdam"): NameParts {
-  const own = m.me.split("@")[1];
   const d = new Date(m.date);
-  const others = m.to.filter((t) => t.address?.toLowerCase() !== m.me.toLowerCase());
-  const sentByMe = m.from.address?.toLowerCase() === m.me.toLowerCase();
-  // Verzonden: belangrijkste externe ontvanger; ontvangen: eerste ontvanger
-  const main = sentByMe ? others[0] ?? m.to[0] : m.to[0];
-  let to = personLabel(main);
-  if (m.to.length > 1 && to) to += " e.a.";
+  const to = recipientsLabel(m.to);
   return {
     date: isoDateInZone(isNaN(d.getTime()) ? new Date() : d, timeZone),
     from: personLabel(m.from),
