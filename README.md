@@ -10,14 +10,14 @@ Sla een mail op als bestand met een naam die wél iets zegt, in de goede map:
 
 ## Wat de add-in doet
 
-1. **Bestandsnaam**: `datum - afzender - ontvanger - onderwerp`
+1. **Bestandsnaam**: `datum - afzender - ontvanger - onderwerp`, met de datum standaard als `jjmmdd` (bv. `261120`)
    - RE:/FW:/Antw:/Doorst:/[EXTERN] worden weggehaald; is het onderwerp leeg, dan wordt de eerste zin van de mail gebruikt.
    - De organisatie komt uit het maildomein: `jurgen@rabobank.nl` → `Jürgen de Vries (Rabobank)`, `kpmg.com` → `KPMG`. Gmail en Outlook.com worden genegeerd, net als het eigen domein.
    - "Jansen, Piet" wordt "Piet Jansen". Bij verzonden mail wordt de externe ontvanger gekozen.
    - Tekens die Windows/SharePoint weigeren worden verwijderd; de naam is maximaal 150 tekens.
    - Alles is aan te passen; de naam wordt live getoond.
-2. **Opslaan**: klik op *Map kiezen en opslaan…* en kies in het Verkenner-venster de (klant)map. De mail komt in de submap **Inbound** van die map; bestaat die nog niet, dan wordt hij aangemaakt. De gekozen map wordt per afzender en per domein onthouden: de volgende keer is het één klik.
-3. **Twee bestanden**: de mail als `.msg` (of `.eml`) én als doorzoekbare **PDF** (kop met afzender, ontvangers, datum, onderwerp en bijlagen, gevolgd door de tekst). Bestaat de naam al, dan krijgen beide bestanden hetzelfde volgnummer, bv. `… (2).msg` en `… (2).pdf`.
+2. **Opslaan**: klik op *Map kiezen en opslaan…* en kies in het Verkenner-venster de (klant)map. De add-in zoekt daarbinnen een bestaande map **Inbound**, ook dieper (bv. `Information\Inbound` of `1. Information\02 Inbound`, tot 3 niveaus). Is die er niet, dan wordt `Inbound` direct onder de gekozen map aangemaakt. De gekozen map wordt per afzender en per domein onthouden: de volgende keer is het één klik.
+3. **Eén bestand** met bijlagen: `.msg` (standaard) of `.eml`. Bestaat de naam al, dan volgt `… (2).msg`.
 4. De mail krijgt de categorie **Gearchiveerd** (maak die categorie eenmalig aan in Outlook).
 
 ## Installatie (zonder IT)
@@ -41,10 +41,10 @@ Zie je de optie *Aangepaste invoegtoepassingen* niet, dan heeft IT het zelf toev
 
 ### 3. Instellen (⚙ in het paneel, optioneel)
 
-- Formaat `.msg` (standaard) of `.eml`, PDF aan/uit, naam van de submap (standaard `Inbound`), categorie en naamopbouw.
+- Formaat `.msg` (standaard) of `.eml`, datumnotatie (jjmmdd, jj-mm-dd, jj mm dd of jjjj-mm-dd), naam van de submap (standaard `Inbound`), categorie en naamopbouw.
 - Maak in Outlook eenmalig de categorie **Gearchiveerd** aan.
 
-Als het Verkenner-venster in het paneel niet mag (Outlook op het web/nieuwe Outlook draaien het paneel in een iframe), opent de add-in een apart venster om de map te kiezen. Kan dat ook niet, dan worden de bestanden gedownload.
+Als het Verkenner-venster in het paneel niet mag (Outlook op het web/nieuwe Outlook draaien het paneel in een iframe), opent de add-in een apart venster om de map te kiezen. Kan dat ook niet, dan wordt het bestand gedownload.
 
 ## Lokaal ontwikkelen
 
@@ -60,5 +60,5 @@ npm test
 
 - Exporteren van de mail vereist Mailbox-API 1.14: nieuwe Outlook, Outlook op het web en een recente classic Outlook (Microsoft 365). Op oudere versies toont de add-in een melding.
 - Het Verkenner-venster gebruikt de File System Access API van Edge/WebView2. In Outlook voor Mac werkt dit niet.
-- De PDF bevat de tekst van de mail (geen opmaak of afbeeldingen uit de mail); bijlagen worden genoemd maar niet in de PDF opgenomen. De volledige versie (met Azure OpenAI en directe upload naar SharePoint) staat in de andere projectmap en vraagt een app-registratie via IT.
+- De volledige versie (met Azure OpenAI en directe upload naar SharePoint) staat in de andere projectmap en vraagt een app-registratie via IT.
 - De `.msg` wordt gemaakt met `@tutao/oxmsg` (MIT, port van MsgKit). Die is gecontroleerd met twee onafhankelijke .msg-lezers, maar nog niet in Outlook zelf geopend: open de eerste paar bestanden ter controle. Bij problemen: kies `.eml`.
