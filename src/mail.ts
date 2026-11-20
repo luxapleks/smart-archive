@@ -22,6 +22,10 @@ export async function readCurrentMail(): Promise<MailInfo | null> {
     date: (it.dateTimeCreated ?? new Date()).toISOString(),
     body: body.slice(0, 20000),
     me: Office.context.mailbox.userProfile.emailAddress,
+    attachments: (it.attachments ?? [])
+      .filter((a) => !a.isInline && a.attachmentType !== Office.MailboxEnums.AttachmentType.Cloud)
+      .filter((a) => !(/^image\d{3}\.(png|jpe?g|gif|bmp)$/i.test(a.name) && a.size < 100 * 1024))
+      .map((a) => (a.attachmentType === Office.MailboxEnums.AttachmentType.Item && !/\.(eml|msg)$/i.test(a.name) ? `${a.name}.eml` : a.name)),
   };
 }
 

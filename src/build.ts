@@ -2,6 +2,21 @@
 export interface BuildOptions {
   format: "msg" | "eml";
   receivedOn?: string;
+  /** Bijlagen ook los opslaan, met deze datum in de naam (leeg = niet) */
+  attachmentDate?: string;
+}
+
+export interface NamedFile {
+  name: string;
+  data: Uint8Array;
+  type: string;
+}
+
+/** Losse bijlagen: "{datum} Bijlage {n} {naam}". */
+export async function buildAttachments(eml: Uint8Array, o: BuildOptions): Promise<NamedFile[]> {
+  if (!o.attachmentDate) return [];
+  const { extractAttachments, nameAttachments } = await import("./shared/attachments");
+  return nameAttachments(o.attachmentDate, await extractAttachments(eml));
 }
 
 export interface BuiltFile {

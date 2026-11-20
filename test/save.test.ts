@@ -103,3 +103,15 @@ test("date formats", () => {
   assert.equal(formatIsoDate("2026-11-20", "jj mm dd"), "26 11 20");
   assert.equal(formatIsoDate("2026-11-20", "jjjj-mm-dd"), "2026-11-20");
 });
+
+test("attachments saved next to the mail with own names; duplicates numbered", async () => {
+  const root = new MemDir("ACME");
+  const inbound = root.sub("Information", "Inbound");
+  inbound.files.set("261120 Bijlage 1 SPA.pdf", new Uint8Array());
+  const r = await saveToDirectory(root as any, "261120 - A→B - T", files, "Inbound", [
+    { name: "261120 Bijlage 1 SPA.pdf", data: new Uint8Array([9]), type: "application/pdf" },
+    { name: "261120 Bijlage 2 README", data: new Uint8Array([8]), type: "text/plain" },
+  ]);
+  assert.deepEqual(r.names, ["261120 - A→B - T.msg", "261120 Bijlage 1 SPA (2).pdf", "261120 Bijlage 2 README"]);
+  assert.equal(r.folder, "ACME\\Information\\Inbound");
+});

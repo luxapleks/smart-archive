@@ -54,6 +54,15 @@ async function exists(dir: FileSystemDirectoryHandle, name: string): Promise<boo
 }
 
 /** Unieke basisnaam: "naam", "naam (2)", "naam (3)", … */
+/** Unieke bestandsnaam: "naam.pdf", "naam (2).pdf", … */
+export async function uniqueName(dir: FileSystemDirectoryHandle, base: string, ext: string): Promise<string> {
+  for (let i = 1; i < 100; i++) {
+    const candidate = `${i === 1 ? base : `${base} (${i})`}${ext}`;
+    if (!(await exists(dir, candidate))) return candidate;
+  }
+  return `${base} (${Date.now()})${ext}`;
+}
+
 export async function uniqueStem(dir: FileSystemDirectoryHandle, stem: string, exts: string[]): Promise<string> {
   for (let i = 1; i < 100; i++) {
     const candidate = i === 1 ? stem : `${stem} (${i})`;
@@ -101,6 +110,7 @@ export async function saveToDirectory(
   stem: string,
   files: { ext: string; data: Uint8Array; type: string }[],
   subfolder: string,
+  extras: { name: string; data: Uint8Array; type: string }[] = [],
 ): Promise<SaveResult> {
   let target: FileSystemDirectoryHandle = picked;
   let path: string[] = [];
@@ -114,14 +124,25 @@ export async function saveToDirectory(
       path = [target.name];
     }
   }
+  const write = async (name: string, data: Uint8Array, type: string) => {
+    const fh = await target.getFileHandle(name, { create: true });
+    const w = await fh.createWritable();
+    await w.write(new Blob([data as Uint8Array<ArrayBuffer>], { type }));
+    await w.close();
+  };
   const finalStem = await uniqueStem(target, stem, files.map((f) => f.ext));
   const names: string[] = [];
   for (const f of files) {
     const name = `${finalStem}.${f.ext}`;
-    const fh = await target.getFileHandle(name, { create: true });
-    const w = await fh.createWritable();
-    await w.write(new Blob([f.data as Uint8Array<ArrayBuffer>], { type: f.type }));
-    await w.close();
+    await write(name, f.data, f.type);
+    names.push(name);
+  }
+  // Bijlagen: elk een eigen naam; bij een bestaande naam "… (2).pdf"
+  for (const x of extras) {
+    const m = x.name.match(/^(.*?)(\.[^.]+)?$/)!;
+    const ext = m[2] ?? "";
+    const name = await uniqueName(target, m[1], ext);
+    await write(name, x.data, x.type);
     names.push(name);
   }
   return { folder: [picked.name, ...path].join("\\"), names };

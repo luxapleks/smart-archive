@@ -38,6 +38,7 @@
           <label>Onderwerp<input id="f-title" type="text" maxlength="100" required /></label>
           <p id="preview" class="preview" title="Zo wordt het bestand opgeslagen"></p>
           <p id="original" class="muted small"></p>
+          <div id="attachments-preview" class="preview small" hidden></div>
         </fieldset>
 
         <fieldset>
@@ -72,6 +73,7 @@
             <label class="check"><input type="radio" name="s-format" value="msg" /> .msg (Outlook-bestand)</label>
             <label class="check"><input type="radio" name="s-format" value="eml" /> .eml (origineel, onbewerkt)</label>
           </div>
+          <label class="check"><input id="s-atts" type="checkbox" /> Bijlagen ook los opslaan ("261120 Bijlage 1 naam.pdf")</label>
           <label>Datumnotatie
             <select id="s-datefmt">
               <option value="jjmmdd">jjmmdd (261120)</option>

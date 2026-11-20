@@ -1,7 +1,8 @@
 import { buildFileName, DEFAULT_TEMPLATE, formatIsoDate, type NameParts } from "./shared/naming";
 import { suggestParts, type MailInfo } from "./shared/labels";
+import { attachmentFileName } from "./shared/attachments";
 import { addCategory, canExport, getEml, readCurrentMail } from "./mail";
-import { buildFiles, toBase64 } from "./build";
+import { buildAttachments, buildFiles, toBase64 } from "./build";
 import {
   ensurePermission,
   pickDirectory,
@@ -63,6 +64,14 @@ function parts(): NameParts {
   return { date: formatIsoDate(f.date.value, settings.dateFormat), from: f.from.value, to: f.to.value, title: f.title.value };
 }
 
+function buildOptions() {
+  return {
+    format: settings.format,
+    receivedOn: mail?.date,
+    attachmentDate: settings.saveAttachments ? formatIsoDate(f.date.value, settings.dateFormat) : "",
+  };
+}
+
 /** Bestandsnaam zonder extensie. */
 function stem(): string {
   return buildFileName(parts(), settings.format, settings.template).replace(/\.[a-z]+$/i, "");
@@ -70,6 +79,18 @@ function stem(): string {
 
 function updatePreview() {
   f.preview.textContent = `${stem()}.${settings.format}`;
+  const list = $("attachments-preview");
+  const atts = settings.saveAttachments ? attachmentNames() : [];
+  list.hidden = !atts.length;
+  list.innerHTML = atts.length
+    ? `<b>Bijlagen (${atts.length})</b>` + atts.map((n) => `<div>${escapeHtml(n)}</div>`).join("")
+    : "";
+}
+
+/** Voorbeeldnamen van de bijlagen volgens Outlook (handtekeningplaatjes niet meegeteld). */
+function attachmentNames(): string[] {
+  const date = formatIsoDate(f.date.value, settings.dateFormat);
+  return (mail?.attachments ?? []).map((a, i) => attachmentFileName(date, i + 1, a));
 }
 
 function targetLabel(dirName: string) {
@@ -143,9 +164,11 @@ async function saveInto(dir: FileSystemDirectoryHandle) {
   setBusy("Mail ophalen…");
   const eml = await getEml();
   setBusy("Bestand maken…");
-  const files = await buildFiles(eml, { format: settings.format, receivedOn: mail.date });
-  setBusy("Opslaan…");
-  const res = await saveToDirectory(dir, stem(), files, settings.subfolder);
+  const opts = buildOptions();
+  const files = await buildFiles(eml, opts);
+  const extras = await buildAttachments(eml, opts);
+  setBusy(extras.length ? `Opslaan (mail + ${extras.length} bijlage${extras.length > 1 ? "n" : ""})…` : "Opslaan…");
+  const res = await saveToDirectory(dir, stem(), files, settings.subfolder, extras);
   await remember(mail.from.address, dir);
   await finish(res);
 }
@@ -224,7 +247,7 @@ function viaDialog() {
           dialog.messageChild(
             JSON.stringify({
               type: "meta",
-              meta: { stem: stem(), subfolder: settings.subfolder, format: settings.format, receivedOn: mail?.date, total },
+              meta: { stem: stem(), subfolder: settings.subfolder, ...buildOptions(), total },
             }),
           );
           for (let i = 0; i < total; i++) {
@@ -252,10 +275,12 @@ async function downloadFallback() {
   if (!mail) return;
   try {
     setBusy("Bestanden maken…");
-    const files = await buildFiles(await getEml(), { format: settings.format, receivedOn: mail.date });
+    const eml = await getEml();
+    const files = (await buildFiles(eml, buildOptions())).map((x) => ({ ...x, name: `${stem()}.${x.ext}` }));
+    const all = [...files, ...(await buildAttachments(eml, buildOptions()))];
     const names: string[] = [];
-    for (const file of files) {
-      const name = `${stem()}.${file.ext}`;
+    for (const file of all) {
+      const name = file.name;
       const a = document.createElement("a");
       a.href = URL.createObjectURL(new Blob([file.data as Uint8Array<ArrayBuffer>], { type: file.type }));
       a.download = name;
@@ -275,6 +300,7 @@ async function downloadFallback() {
 
 const s = {
   dateFmt: $<HTMLSelectElement>("s-datefmt"),
+  atts: $<HTMLInputElement>("s-atts"),
   sub: $<HTMLInputElement>("s-sub"),
   category: $<HTMLInputElement>("s-category"),
   template: $<HTMLInputElement>("s-template"),
@@ -283,6 +309,7 @@ const s = {
 function openSettings() {
   settings = getSettings();
   s.dateFmt.value = settings.dateFormat;
+  s.atts.checked = settings.saveAttachments;
   s.sub.value = settings.subfolder;
   s.category.value = settings.category;
   s.template.value = settings.template;
@@ -295,6 +322,7 @@ async function saveSettings(ev: SubmitEvent) {
   settings = {
     format: (document.querySelector<HTMLInputElement>("input[name=s-format]:checked")?.value ?? "msg") as Format,
     dateFormat: s.dateFmt.value as DateFormat,
+    saveAttachments: s.atts.checked,
     subfolder: s.sub.value.trim().replace(/[\\/:*?"<>|]/g, ""),
     category: s.category.value.trim(),
     template: s.template.value.trim() || DEFAULT_TEMPLATE,

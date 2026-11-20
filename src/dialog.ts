@@ -4,7 +4,7 @@
  * waarin dat wel mag. Het paneel stuurt de mail in stukken; hier kiest de
  * gebruiker de map en worden de bestanden geschreven.
  */
-import { buildFiles, fromBase64, type BuildOptions } from "./build";
+import { buildAttachments, buildFiles, fromBase64, type BuildOptions } from "./build";
 import { pickDirectory, saveToDirectory } from "./fsaccess";
 
 interface Meta extends BuildOptions {
@@ -48,8 +48,10 @@ Office.onReady(() => {
       const dir = await pickDirectory(); // eerst kiezen: vereist de klik
       btn.disabled = true;
       $("d-status").textContent = "Bestanden maken…";
-      const files = await buildFiles(fromBase64(chunks.join("")), meta);
-      const res = await saveToDirectory(dir, meta.stem, files, meta.subfolder);
+      const eml = fromBase64(chunks.join(""));
+      const files = await buildFiles(eml, meta);
+      const extras = await buildAttachments(eml, meta);
+      const res = await saveToDirectory(dir, meta.stem, files, meta.subfolder, extras);
       send({ type: "done", result: res });
     } catch (e: any) {
       if (e?.name === "AbortError") return; // geannuleerd: venster open laten

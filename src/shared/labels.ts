@@ -79,6 +79,8 @@ export interface MailInfo {
   date: string;
   body: string;
   me: string;
+  /** Namen van echte bijlagen (geen ingesloten afbeeldingen), in volgorde */
+  attachments?: string[];
 }
 
 /** Eerste zinvolle regel uit de body, als het onderwerp leeg is. */

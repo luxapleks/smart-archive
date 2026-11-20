@@ -9,6 +9,7 @@ export type DateFormat = "jjmmdd" | "jj-mm-dd" | "jj mm dd" | "jjjj-mm-dd";
 export interface Settings {
   format: Format;
   dateFormat: DateFormat;
+  saveAttachments: boolean;
   subfolder: string;
   template: string;
   category: string;
@@ -17,6 +18,7 @@ export interface Settings {
 export const DEFAULTS: Settings = {
   format: "msg",
   dateFormat: "jjmmdd",
+  saveAttachments: true,
   subfolder: "Inbound",
   template: DEFAULT_TEMPLATE,
   category: "Gearchiveerd",
