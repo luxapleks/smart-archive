@@ -31,23 +31,44 @@ export function orgFromDomain(domain: string | undefined, ownDomain?: string): s
     .join(" ");
 }
 
+const SMALL = new Set(["de", "den", "der", "van", "von", "het", "te", "ter", "ten", "op", "in", "'t", "la", "le", "du", "da", "di", "del", "della"]);
+
 /** "piet.de.vries" -> "Piet de Vries" (tussenvoegsels klein) */
 function prettifyLocalPart(local: string): string {
-  const small = new Set(["de", "van", "der", "den", "het", "te", "ter", "ten", "op", "in", "'t"]);
   return local
     .split(/[._-]+/)
     .filter(Boolean)
-    .map((w, i) => (i > 0 && small.has(w.toLowerCase()) ? w.toLowerCase() : w.charAt(0).toUpperCase() + w.slice(1)))
+    .map((w, i) => (i > 0 && SMALL.has(w.toLowerCase()) ? w.toLowerCase() : w.charAt(0).toUpperCase() + w.slice(1)))
     .join(" ");
 }
 
-export function personLabel(p: Person | undefined, ownDomain?: string): string {
+/**
+ * Korte naam: eerste letter van de voornaam + volledige achternaam, zonder spaties.
+ * "Jürgen de Vries" -> "JdeVries", "Jan Pieter van den Berg" -> "JvandenBerg",
+ * "Anna Jansen-Bakker" -> "AJansen-Bakker". Eén woord blijft zoals het is.
+ */
+export function shortName(full: string): string {
+  const clean = (full ?? "")
+    .replace(/\s*[([{].*?[)\]}]\s*/g, " ") // "(Extern)", "[Rabobank]"
+    .replace(/\s+[|–—]\s+.*$/, "") // "Piet Jansen | Rabobank"
+    .replace(/\s+-\s+.*$/, "")
+    .trim();
+  const words = clean.split(/\s+/).filter(Boolean);
+  if (words.length <= 1) return words[0] ?? "";
+  // Achternaam begint bij het eerste tussenvoegsel na de voornaam, anders het laatste woord
+  let start = words.findIndex((w, i) => i > 0 && SMALL.has(w.toLowerCase()));
+  if (start < 0) start = words.length - 1;
+  const surname = words.slice(start).map((w, i, arr) =>
+    i < arr.length - 1 && SMALL.has(w.toLowerCase()) ? w.toLowerCase() : w.charAt(0).toUpperCase() + w.slice(1),
+  );
+  return words[0].charAt(0).toUpperCase() + surname.join("");
+}
+
+export function personLabel(p: Person | undefined): string {
   if (!p) return "";
   let name = labelFromAddress(p.name, p.address);
   if (!p.name || p.name.includes("@")) name = prettifyLocalPart(name);
-  const org = orgFromDomain(p.address?.split("@")[1], ownDomain);
-  // Organisatie niet herhalen als die al in de naam staat ("Rabobank Servicedesk")
-  return org && !name.toLowerCase().includes(org.toLowerCase()) ? `${name} (${org})` : name;
+  return shortName(name);
 }
 
 export interface MailInfo {
@@ -76,11 +97,11 @@ export function suggestParts(m: MailInfo, timeZone = "Europe/Amsterdam"): NamePa
   const sentByMe = m.from.address?.toLowerCase() === m.me.toLowerCase();
   // Verzonden: belangrijkste externe ontvanger; ontvangen: eerste ontvanger
   const main = sentByMe ? others[0] ?? m.to[0] : m.to[0];
-  let to = personLabel(main, own);
+  let to = personLabel(main);
   if (m.to.length > 1 && to) to += " e.a.";
   return {
     date: isoDateInZone(isNaN(d.getTime()) ? new Date() : d, timeZone),
-    from: personLabel(m.from, own),
+    from: personLabel(m.from),
     to,
     title: stripSubjectPrefixes(m.subject) || titleFromBody(m.body) || "Zonder onderwerp",
   };
