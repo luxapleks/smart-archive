@@ -137,6 +137,20 @@ export function isoDateInZone(d: Date, timeZone = "Europe/Amsterdam"): string {
   }).format(d);
 }
 
+/** ISO-datum (YYYY-MM-DD) omzetten naar het gekozen formaat: jjmmdd, jj-mm-dd, jj mm dd of jjjj-mm-dd. */
+export function formatIsoDate(iso: string, format: string): string {
+  const m = (iso ?? "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return iso ?? "";
+  const [, yyyy, mm, dd] = m;
+  const yy = yyyy.slice(2);
+  switch (format) {
+    case "jj-mm-dd": return `${yy}-${mm}-${dd}`;
+    case "jj mm dd": return `${yy} ${mm} ${dd}`;
+    case "jjjj-mm-dd": return `${yyyy}-${mm}-${dd}`;
+    default: return `${yy}${mm}${dd}`;
+  }
+}
+
 /** Maakt een mappad veilig: elk segment gesanitized, lege segmenten verwijderd. */
 export function sanitizeFolderPath(path: string): string {
   return (path ?? "")

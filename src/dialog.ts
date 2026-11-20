@@ -27,7 +27,7 @@ Office.onReady(() => {
     if (msg.type === "meta") {
       meta = msg.meta;
       chunks = new Array(meta!.total);
-      $("d-name").textContent = `${meta!.stem}.${meta!.format}${meta!.pdf ? " + .pdf" : ""}`;
+      $("d-name").textContent = `${meta!.stem}.${meta!.format}`;
       $("d-name").hidden = false;
       $("d-sub").textContent = meta!.subfolder || "(geen)";
     } else if (msg.type === "chunk") {

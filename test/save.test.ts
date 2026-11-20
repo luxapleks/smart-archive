@@ -1,21 +1,31 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { saveToDirectory, uniqueStem } from "../src/fsaccess.ts";
-import { emlToPdf, toWinAnsi } from "../src/shared/pdf.ts";
-import { makeEml } from "./fixtures/make-eml.ts";
+import { findSubfolder, matchesSubfolder, saveToDirectory, uniqueStem } from "../src/fsaccess.ts";
+import { formatIsoDate } from "../src/shared/naming.ts";
 
 /** Minimale in-memory nabootsing van FileSystemDirectoryHandle. */
 class MemDir {
+  kind = "directory" as const;
   dirs = new Map<string, MemDir>();
   files = new Map<string, Uint8Array>();
   constructor(public name: string) {}
+  sub(...names: string[]): MemDir {
+    let d: MemDir = this;
+    for (const n of names) {
+      if (!d.dirs.has(n)) d.dirs.set(n, new MemDir(n));
+      d = d.dirs.get(n)!;
+    }
+    return d;
+  }
+  async *values() {
+    for (const d of this.dirs.values()) yield d;
+    for (const n of this.files.keys()) yield { kind: "file", name: n };
+  }
   async getDirectoryHandle(n: string, o?: { create?: boolean }) {
     const k = [...this.dirs.keys()].find((x) => x.toLowerCase() === n.toLowerCase());
     if (k) return this.dirs.get(k)!;
     if (!o?.create) throw Object.assign(new Error("nf"), { name: "NotFoundError" });
-    const d = new MemDir(n);
-    this.dirs.set(n, d);
-    return d;
+    return this.sub(n);
   }
   async getFileHandle(n: string, o?: { create?: boolean }) {
     if (!this.files.has(n) && !o?.create) throw Object.assign(new Error("nf"), { name: "NotFoundError" });
@@ -32,49 +42,64 @@ class MemDir {
   }
 }
 
-const files = [
-  { ext: "msg", data: new Uint8Array([1, 2]), type: "x" },
-  { ext: "pdf", data: new Uint8Array([3]), type: "y" },
-];
+const files = [{ ext: "msg", data: new Uint8Array([1, 2]), type: "x" }];
 
-test("saves into Inbound subfolder, creating it", async () => {
+test("creates Inbound when none exists", async () => {
   const root = new MemDir("ACME BV");
-  const r = await saveToDirectory(root as any, "2026-11-20 - A - B - T", files, "Inbound");
-  assert.equal(r.folder, "ACME BV\\Inbound");
-  assert.deepEqual(r.names, ["2026-11-20 - A - B - T.msg", "2026-11-20 - A - B - T.pdf"]);
-  assert.deepEqual([...root.dirs.get("Inbound")!.files.keys()].sort(), r.names);
-});
-
-test("uses existing inbound (any case) and numbers duplicates consistently", async () => {
-  const root = new MemDir("ACME BV");
-  const inbound = await root.getDirectoryHandle("inbound", { create: true });
-  inbound.files.set("x.pdf", new Uint8Array()); // alleen pdf bestaat al
+  root.sub("Financials", "2025");
   const r = await saveToDirectory(root as any, "x", files, "Inbound");
-  assert.deepEqual(r.names, ["x (2).msg", "x (2).pdf"]);
-  assert.equal(root.dirs.size, 1);
+  assert.equal(r.folder, "ACME BV\\Inbound");
+  assert.ok(root.dirs.get("Inbound")!.files.has("x.msg"));
 });
 
-test("no Inbound-in-Inbound when the Inbound folder itself is chosen", async () => {
+test("uses existing deeper Inbound instead of creating one", async () => {
+  const root = new MemDir("ACME BV");
+  root.sub("Deliverables");
+  const deep = root.sub("1. Information", "Inbound");
+  const r = await saveToDirectory(root as any, "x", files, "Inbound");
+  assert.equal(r.folder, "ACME BV\\1. Information\\Inbound");
+  assert.ok(deep.files.has("x.msg"));
+  assert.equal(root.dirs.has("Inbound"), false);
+});
+
+test("shallowest match wins; numbered names count", async () => {
+  const root = new MemDir("ACME");
+  root.sub("Information", "Sub", "Inbound");
+  root.sub("Information", "02 Inbound");
+  const f = await findSubfolder(root as any, "Inbound");
+  assert.deepEqual(f?.path, ["Information", "02 Inbound"]);
+});
+
+test("search depth is limited to 3 levels", async () => {
+  const root = new MemDir("ACME");
+  root.sub("a", "b", "c", "Inbound");
+  assert.equal(await findSubfolder(root as any, "Inbound"), null);
+});
+
+test("chosen Inbound folder itself is used directly; duplicates are numbered", async () => {
   const inbound = new MemDir("Inbound");
+  inbound.files.set("x.msg", new Uint8Array());
   const r = await saveToDirectory(inbound as any, "x", files, "Inbound");
   assert.equal(r.folder, "Inbound");
-  assert.equal(inbound.dirs.size, 0);
-  assert.equal(await uniqueStem(inbound as any, "x", ["msg"]), "x (2)");
+  assert.deepEqual(r.names, ["x (2).msg"]);
+  assert.equal(await uniqueStem(inbound as any, "y", ["msg"]), "y");
 });
 
 test("empty subfolder setting saves directly in chosen folder", async () => {
   const root = new MemDir("ACME");
   const r = await saveToDirectory(root as any, "x", files, "");
   assert.equal(r.folder, "ACME");
-  assert.equal(root.files.size, 2);
+  assert.ok(root.files.has("x.msg"));
 });
 
-test("PDF is generated with header and body text", async () => {
-  const pdf = await emlToPdf(makeEml(), { footer: "2026-11-09 - test" });
-  assert.equal(Buffer.from(pdf.subarray(0, 5)).toString(), "%PDF-");
-  assert.ok(pdf.byteLength > 1500);
+test("subfolder name matching", () => {
+  for (const n of ["Inbound", "inbound", "01 Inbound", "1. Inbound", "2 - Inbound", " Inbound "]) assert.ok(matchesSubfolder(n, "Inbound"), n);
+  for (const n of ["Inbound oud", "Outbound", "Inbound (archief)"]) assert.ok(!matchesSubfolder(n, "Inbound"), n);
 });
 
-test("WinAnsi sanitizing keeps Dutch text and drops emoji", () => {
-  assert.equal(toWinAnsi("Jürgen – “offerte” € 5 ✓ 👍​"), "Jürgen – “offerte” € 5 v ");
+test("date formats", () => {
+  assert.equal(formatIsoDate("2026-11-20", "jjmmdd"), "261120");
+  assert.equal(formatIsoDate("2026-11-20", "jj-mm-dd"), "26-11-20");
+  assert.equal(formatIsoDate("2026-11-20", "jj mm dd"), "26 11 20");
+  assert.equal(formatIsoDate("2026-11-20", "jjjj-mm-dd"), "2026-11-20");
 });

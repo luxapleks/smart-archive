@@ -72,8 +72,15 @@
             <label class="check"><input type="radio" name="s-format" value="msg" /> .msg (Outlook-bestand)</label>
             <label class="check"><input type="radio" name="s-format" value="eml" /> .eml (origineel, onbewerkt)</label>
           </div>
-          <label class="check"><input id="s-pdf" type="checkbox" /> Ook een PDF opslaan</label>
-          <label>Submap in de gekozen map (leeg = direct in de gekozen map)
+          <label>Datumnotatie
+            <select id="s-datefmt">
+              <option value="jjmmdd">jjmmdd (261120)</option>
+              <option value="jj-mm-dd">jj-mm-dd (26-11-20)</option>
+              <option value="jj mm dd">jj mm dd (26 11 20)</option>
+              <option value="jjjj-mm-dd">jjjj-mm-dd (2026-11-20)</option>
+            </select>
+          </label>
+          <label>Opslaan in submap (zoekt een bestaande map, ook dieper; leeg = direct in de gekozen map)
             <input id="s-sub" type="text" maxlength="60" />
           </label>
           <label>Categorie na archiveren (leeg = geen)

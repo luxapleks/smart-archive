@@ -1,9 +1,10 @@
 /** Instellingen, opgeslagen in Outlook roamingSettings (reist mee met je mailbox). */
 export type Format = "msg" | "eml";
+export type DateFormat = "jjmmdd" | "jj-mm-dd" | "jj mm dd" | "jjjj-mm-dd";
 
 export interface Settings {
   format: Format;
-  pdf: boolean;
+  dateFormat: DateFormat;
   subfolder: string;
   template: string;
   category: string;
@@ -11,14 +12,15 @@ export interface Settings {
 
 export const DEFAULTS: Settings = {
   format: "msg",
-  pdf: true,
+  dateFormat: "jjmmdd",
   subfolder: "Inbound",
   template: "{date} - {from} - {to} - {title}",
   category: "Gearchiveerd",
 };
 
 export function getSettings(): Settings {
-  return { ...DEFAULTS, ...((Office.context.roamingSettings.get("settings") as Partial<Settings>) ?? {}) };
+  const saved = (Office.context.roamingSettings.get("settings") as Partial<Settings>) ?? {};
+  return { ...DEFAULTS, ...saved };
 }
 
 export function setSettings(s: Settings): Promise<void> {

@@ -1,9 +1,7 @@
-/** Maakt de te bewaren bestanden (.msg/.eml en optioneel .pdf) uit de originele mail. */
+/** Maakt het te bewaren bestand (.msg of .eml) uit de originele mail. */
 export interface BuildOptions {
   format: "msg" | "eml";
-  pdf: boolean;
   receivedOn?: string;
-  footer?: string;
 }
 
 export interface BuiltFile {
@@ -13,23 +11,16 @@ export interface BuiltFile {
 }
 
 export async function buildFiles(eml: Uint8Array, o: BuildOptions): Promise<BuiltFile[]> {
-  const out: BuiltFile[] = [];
-  if (o.format === "msg") {
-    // Pas laden als het nodig is: houdt het openen van het paneel snel
-    const { emlToMsg } = await import("./shared/mime2msg");
-    out.push({
+  if (o.format === "eml") return [{ ext: "eml", data: eml, type: "message/rfc822" }];
+  // Pas laden als het nodig is: houdt het openen van het paneel snel
+  const { emlToMsg } = await import("./shared/mime2msg");
+  return [
+    {
       ext: "msg",
       data: await emlToMsg(eml, { receivedOn: o.receivedOn ? new Date(o.receivedOn) : undefined }),
       type: "application/vnd.ms-outlook",
-    });
-  } else {
-    out.push({ ext: "eml", data: eml, type: "message/rfc822" });
-  }
-  if (o.pdf) {
-    const { emlToPdf } = await import("./shared/pdf");
-    out.push({ ext: "pdf", data: await emlToPdf(eml, { footer: o.footer }), type: "application/pdf" });
-  }
-  return out;
+    },
+  ];
 }
 
 export function toBase64(bytes: Uint8Array): string {

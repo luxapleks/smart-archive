@@ -1,4 +1,4 @@
-import { buildFileName, type NameParts } from "./shared/naming";
+import { buildFileName, formatIsoDate, type NameParts } from "./shared/naming";
 import { suggestParts, type MailInfo } from "./shared/labels";
 import { addCategory, canExport, getEml, readCurrentMail } from "./mail";
 import { buildFiles, toBase64 } from "./build";
@@ -11,7 +11,7 @@ import {
   saveToDirectory,
   type SaveResult,
 } from "./fsaccess";
-import { getSettings, setSettings, type Format, type Settings } from "./store";
+import { getSettings, setSettings, type DateFormat, type Format, type Settings } from "./store";
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -60,22 +60,21 @@ function escapeHtml(s: string) {
 }
 
 function parts(): NameParts {
-  return { date: f.date.value, from: f.from.value, to: f.to.value, title: f.title.value };
+  return { date: formatIsoDate(f.date.value, settings.dateFormat), from: f.from.value, to: f.to.value, title: f.title.value };
 }
 
-/** Bestandsnaam zonder extensie (zelfde basis voor .msg en .pdf). */
+/** Bestandsnaam zonder extensie. */
 function stem(): string {
   return buildFileName(parts(), settings.format, settings.template).replace(/\.[a-z]+$/i, "");
 }
 
 function updatePreview() {
-  const exts = [settings.format, ...(settings.pdf ? ["pdf"] : [])].map((e) => `.${e}`).join(" + ");
-  f.preview.textContent = `${stem()}  (${exts})`;
+  f.preview.textContent = `${stem()}.${settings.format}`;
 }
 
 function targetLabel(dirName: string) {
   const sub = settings.subfolder;
-  return sub && dirName.toLowerCase() !== sub.toLowerCase() ? `${dirName}\\${sub}` : dirName;
+  return sub && dirName.toLowerCase() !== sub.toLowerCase() ? `${dirName} › ${sub}` : dirName;
 }
 
 function setBusy(text: string | null) {
@@ -128,8 +127,8 @@ async function load() {
       f.remembered.hidden = false;
     }
     f.hint.textContent = settings.subfolder
-      ? `De bestanden komen in de submap '${settings.subfolder}' van de map die je kiest (wordt zo nodig aangemaakt).`
-      : "De bestanden komen direct in de map die je kiest.";
+      ? `Het bestand komt in de map '${settings.subfolder}' binnen de map die je kiest, ook als die dieper ligt (bv. Information › ${settings.subfolder}). Is er geen, dan wordt hij aangemaakt.`
+      : "Het bestand komt direct in de map die je kiest.";
 
     if (current !== "settings") show("form");
   } catch (e: any) {
@@ -143,13 +142,8 @@ async function saveInto(dir: FileSystemDirectoryHandle) {
   if (!mail) return;
   setBusy("Mail ophalen…");
   const eml = await getEml();
-  setBusy(settings.pdf ? "Bestanden en PDF maken…" : "Bestand maken…");
-  const files = await buildFiles(eml, {
-    format: settings.format,
-    pdf: settings.pdf,
-    receivedOn: mail.date,
-    footer: stem(),
-  });
+  setBusy("Bestand maken…");
+  const files = await buildFiles(eml, { format: settings.format, receivedOn: mail.date });
   setBusy("Opslaan…");
   const res = await saveToDirectory(dir, stem(), files, settings.subfolder);
   await remember(mail.from.address, dir);
@@ -230,7 +224,7 @@ function viaDialog() {
           dialog.messageChild(
             JSON.stringify({
               type: "meta",
-              meta: { stem: stem(), subfolder: settings.subfolder, format: settings.format, pdf: settings.pdf, receivedOn: mail?.date, footer: stem(), total },
+              meta: { stem: stem(), subfolder: settings.subfolder, format: settings.format, receivedOn: mail?.date, total },
             }),
           );
           for (let i = 0; i < total; i++) {
@@ -258,7 +252,7 @@ async function downloadFallback() {
   if (!mail) return;
   try {
     setBusy("Bestanden maken…");
-    const files = await buildFiles(await getEml(), { format: settings.format, pdf: settings.pdf, receivedOn: mail.date, footer: stem() });
+    const files = await buildFiles(await getEml(), { format: settings.format, receivedOn: mail.date });
     const names: string[] = [];
     for (const file of files) {
       const name = `${stem()}.${file.ext}`;
@@ -280,7 +274,7 @@ async function downloadFallback() {
 /* ---------------------------------------------------------- instellingen */
 
 const s = {
-  pdf: $<HTMLInputElement>("s-pdf"),
+  dateFmt: $<HTMLSelectElement>("s-datefmt"),
   sub: $<HTMLInputElement>("s-sub"),
   category: $<HTMLInputElement>("s-category"),
   template: $<HTMLInputElement>("s-template"),
@@ -288,7 +282,7 @@ const s = {
 
 function openSettings() {
   settings = getSettings();
-  s.pdf.checked = settings.pdf;
+  s.dateFmt.value = settings.dateFormat;
   s.sub.value = settings.subfolder;
   s.category.value = settings.category;
   s.template.value = settings.template;
@@ -300,7 +294,7 @@ async function saveSettings(ev: SubmitEvent) {
   ev.preventDefault();
   settings = {
     format: (document.querySelector<HTMLInputElement>("input[name=s-format]:checked")?.value ?? "msg") as Format,
-    pdf: s.pdf.checked,
+    dateFormat: s.dateFmt.value as DateFormat,
     subfolder: s.sub.value.trim().replace(/[\\/:*?"<>|]/g, ""),
     category: s.category.value.trim(),
     template: s.template.value.trim() || "{date} - {from} - {to} - {title}",

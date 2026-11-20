@@ -53,7 +53,7 @@ async function exists(dir: FileSystemDirectoryHandle, name: string): Promise<boo
   }
 }
 
-/** Unieke basisnaam zodat .msg en .pdf hetzelfde volgnummer krijgen ("… (2).msg" / "… (2).pdf"). */
+/** Unieke basisnaam: "naam", "naam (2)", "naam (3)", … */
 export async function uniqueStem(dir: FileSystemDirectoryHandle, stem: string, exts: string[]): Promise<string> {
   for (let i = 1; i < 100; i++) {
     const candidate = i === 1 ? stem : `${stem} (${i})`;
@@ -63,15 +63,57 @@ export async function uniqueStem(dir: FileSystemDirectoryHandle, stem: string, e
   return `${stem} (${Date.now()})`;
 }
 
+/** "Inbound", "inbound", "01 Inbound", "1. Inbound" en "1 - Inbound" tellen allemaal als Inbound. */
+export function matchesSubfolder(dirName: string, subfolder: string): boolean {
+  const esc = subfolder.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`^(\\d+[\\s._-]*)?${esc}$`, "i").test(dirName.trim());
+}
+
+/**
+ * Zoekt een bestaande Inbound-map binnen de gekozen map, tot `maxDepth` niveaus diep
+ * (bv. "Information\\Inbound"). Ondiepste treffer wint; bij gelijke diepte alfabetisch.
+ */
+export async function findSubfolder(
+  root: FileSystemDirectoryHandle,
+  subfolder: string,
+  maxDepth = 3,
+): Promise<{ handle: FileSystemDirectoryHandle; path: string[] } | null> {
+  let level: { handle: FileSystemDirectoryHandle; path: string[] }[] = [{ handle: root, path: [] }];
+  for (let depth = 1; depth <= maxDepth && level.length; depth++) {
+    const next: typeof level = [];
+    const hits: typeof level = [];
+    for (const { handle, path } of level) {
+      for await (const child of (handle as any).values() as AsyncIterable<FileSystemHandle>) {
+        if (child.kind !== "directory") continue;
+        const entry = { handle: child as FileSystemDirectoryHandle, path: [...path, child.name] };
+        if (matchesSubfolder(child.name, subfolder)) hits.push(entry);
+        else if (!child.name.startsWith(".")) next.push(entry);
+      }
+    }
+    if (hits.length) return hits.sort((a, b) => a.path.join("/").localeCompare(b.path.join("/"), "nl"))[0];
+    level = next;
+  }
+  return null;
+}
+
 export async function saveToDirectory(
   picked: FileSystemDirectoryHandle,
   stem: string,
   files: { ext: string; data: Uint8Array; type: string }[],
   subfolder: string,
 ): Promise<SaveResult> {
-  // Kiest de gebruiker zelf al de Inbound-map, dan niet nog een Inbound daarin
-  const useSub = subfolder && picked.name.toLowerCase() !== subfolder.toLowerCase();
-  const target = useSub ? await picked.getDirectoryHandle(subfolder, { create: true }) : picked;
+  let target: FileSystemDirectoryHandle = picked;
+  let path: string[] = [];
+  // Kiest de gebruiker zelf al de Inbound-map, dan daar opslaan
+  if (subfolder && !matchesSubfolder(picked.name, subfolder)) {
+    const found = await findSubfolder(picked, subfolder);
+    if (found) ({ handle: target, path } = found);
+    else {
+      // Nergens een Inbound-map: direct onder de gekozen map aanmaken
+      target = await picked.getDirectoryHandle(subfolder, { create: true });
+      path = [target.name];
+    }
+  }
   const finalStem = await uniqueStem(target, stem, files.map((f) => f.ext));
   const names: string[] = [];
   for (const f of files) {
@@ -82,7 +124,7 @@ export async function saveToDirectory(
     await w.close();
     names.push(name);
   }
-  return { folder: useSub ? `${picked.name}\\${target.name}` : picked.name, names };
+  return { folder: [picked.name, ...path].join("\\"), names };
 }
 
 /* --------------------------------------- onthouden (IndexedDB) */
