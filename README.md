@@ -16,7 +16,7 @@ Sla een mail op als bestand met een naam die wél iets zegt, in de goede map:
    - "Jansen, Piet" wordt "Piet Jansen". Bij verzonden mail wordt de externe ontvanger gekozen.
    - Tekens die Windows/SharePoint weigeren worden verwijderd; de naam is maximaal 150 tekens.
    - Alles is aan te passen; de naam wordt live getoond.
-2. **Opslaan**: klik op *Map kiezen en opslaan…* en kies in het Verkenner-venster de (klant)map. De add-in zoekt daarbinnen een bestaande map **Inbound**, ook dieper (bv. `Information\Inbound` of `1. Information\02 Inbound`, tot 3 niveaus). Is die er niet, dan wordt `Inbound` direct onder de gekozen map aangemaakt. De gekozen map wordt per afzender en per domein onthouden: de volgende keer is het één klik.
+2. **Opslaan**: kies eenmalig je **archiefmap** (bv. `2. Prospects`). Daarna kies je de klantmap in het paneel zelf: de add-in stelt de juiste klantmap voor (op basis van de naam, het afzenderdomein en je eerdere keuze voor deze contactpersoon) en je kunt zoeken. Binnen de klantmap zoekt de add-in een bestaande map **Inbound** – of **Outbound** als jij de afzender bent – ook dieper (bv. `Information\Inbound`, tot 3 niveaus). Is die er niet, dan wordt hij direct onder de klantmap aangemaakt. Toestemming geef je één keer per Outlook-sessie. Een andere map kan altijd via *Andere map kiezen via Verkenner…*.
 3. **Eén bestand** met bijlagen: `.msg` (standaard) of `.eml`. Bestaat de naam al, dan volgt `… (2).msg`.
    - **Bijlagen** worden daarnaast los opgeslagen in dezelfde map: `261120 Bijlage 1 Concept SPA.pdf`, `261120 Bijlage 2 …`. Logo's uit handtekeningen worden overgeslagen; een bijgevoegde mail krijgt het onderwerp als naam (`.eml`). Uit te zetten in ⚙.
 4. De mail krijgt de categorie **Gearchiveerd** (maak die categorie eenmalig aan in Outlook).
@@ -42,7 +42,7 @@ Zie je de optie *Aangepaste invoegtoepassingen* niet, dan heeft IT het zelf toev
 
 ### 3. Instellen (⚙ in het paneel, optioneel)
 
-- Formaat `.msg` (standaard) of `.eml`, datumnotatie (jjmmdd, jj-mm-dd, jj mm dd of jjjj-mm-dd), bijlagen los opslaan aan/uit, naam van de submap (standaard `Inbound`), categorie en naamopbouw.
+- Formaat `.msg` (standaard) of `.eml`, datumnotatie (jjmmdd, jj-mm-dd, jj mm dd of jjjj-mm-dd), bijlagen los opslaan aan/uit, archiefmap en hoe diep de klantmappen liggen, namen van de submappen (standaard `Inbound` en `Outbound`), categorie en naamopbouw.
 - Maak in Outlook eenmalig de categorie **Gearchiveerd** aan.
 
 Als het Verkenner-venster in het paneel niet mag (Outlook op het web/nieuwe Outlook draaien het paneel in een iframe), opent de add-in een apart venster om de map te kiezen. Kan dat ook niet, dan wordt het bestand gedownload.

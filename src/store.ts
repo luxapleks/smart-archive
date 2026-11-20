@@ -10,6 +10,10 @@ export interface Settings {
   format: Format;
   dateFormat: DateFormat;
   saveAttachments: boolean;
+  /** Submap bij verzonden mail (jij bent de afzender) */
+  subfolderOut: string;
+  /** Hoe diep klantmappen onder de archiefmap liggen (1 = direct eronder) */
+  folderDepth: number;
   subfolder: string;
   template: string;
   category: string;
@@ -19,6 +23,8 @@ export const DEFAULTS: Settings = {
   format: "msg",
   dateFormat: "jjmmdd",
   saveAttachments: true,
+  subfolderOut: "Outbound",
+  folderDepth: 1,
   subfolder: "Inbound",
   template: DEFAULT_TEMPLATE,
   category: "Gearchiveerd",

@@ -200,3 +200,56 @@ export async function remember(address: string | undefined, handle: FileSystemDi
     if (key) await idb("readwrite", (s) => s.put(handle, key));
   }
 }
+
+/* --------------------------------------- archiefroot (eenmalig gekozen) */
+
+export async function getRoot(): Promise<DirHandle | undefined> {
+  return idb<DirHandle>("readonly", (s) => s.get("root"));
+}
+
+export async function setRoot(h: FileSystemDirectoryHandle): Promise<void> {
+  await idb("readwrite", (s) => s.put(h, "root"));
+}
+
+export async function hasPermission(h: DirHandle): Promise<boolean> {
+  return !h.queryPermission || (await h.queryPermission({ mode: "readwrite" })) === "granted";
+}
+
+export interface FolderEntry {
+  path: string; // relatief aan de root, met "/"
+  handle: FileSystemDirectoryHandle;
+}
+
+/** Klantmappen onder de root, tot `depth` niveaus. */
+export async function listFolders(root: FileSystemDirectoryHandle, depth = 1, cap = 5000): Promise<FolderEntry[]> {
+  const out: FolderEntry[] = [];
+  let level: FolderEntry[] = [{ path: "", handle: root }];
+  for (let d = 0; d < depth && level.length; d++) {
+    const next: FolderEntry[] = [];
+    for (const parent of level) {
+      for await (const child of (parent.handle as any).values() as AsyncIterable<FileSystemHandle>) {
+        if (child.kind !== "directory" || child.name.startsWith(".") || child.name.startsWith("~")) continue;
+        const e = { path: parent.path ? `${parent.path}/${child.name}` : child.name, handle: child as FileSystemDirectoryHandle };
+        out.push(e);
+        next.push(e);
+        if (out.length >= cap) return out;
+      }
+    }
+    level = next;
+  }
+  return out.sort((a, b) => a.path.localeCompare(b.path, "nl"));
+}
+
+/** Gekozen klantmap (pad t.o.v. de root) per afzender en domein onthouden. */
+export async function rememberPath(address: string | undefined, path: string) {
+  const k = keysFor(address);
+  for (const key of [k.address, k.domain]) if (key) await idb("readwrite", (s) => s.put(path, `p${key}`));
+}
+
+export async function rememberedPath(address?: string): Promise<{ path: string; byDomain: boolean } | null> {
+  const k = keysFor(address);
+  const a = k.address ? await idb<string>("readonly", (s) => s.get(`p${k.address}`)) : undefined;
+  if (typeof a === "string") return { path: a, byDomain: false };
+  const d = k.domain ? await idb<string>("readonly", (s) => s.get(`p${k.domain}`)) : undefined;
+  return typeof d === "string" ? { path: d, byDomain: true } : null;
+}

@@ -1,15 +1,21 @@
 import { buildFileName, DEFAULT_TEMPLATE, formatIsoDate, type NameParts } from "./shared/naming";
 import { suggestParts, type MailInfo } from "./shared/labels";
 import { attachmentFileName } from "./shared/attachments";
+import { scoreFolders } from "./shared/score";
 import { addCategory, canExport, getEml, readCurrentMail } from "./mail";
 import { buildAttachments, buildFiles, toBase64 } from "./build";
 import {
   ensurePermission,
+  getRoot,
+  hasPermission,
+  listFolders,
   pickDirectory,
   pickerAvailable,
-  remember,
-  rememberedFor,
+  rememberPath,
+  rememberedPath,
   saveToDirectory,
+  setRoot,
+  type FolderEntry,
   type SaveResult,
 } from "./fsaccess";
 import { getSettings, setSettings, type DateFormat, type Format, type Settings } from "./store";
@@ -33,17 +39,34 @@ const f = {
   title: $<HTMLInputElement>("f-title"),
   preview: $("preview"),
   original: $("original"),
-  remembered: $<HTMLButtonElement>("save-remembered"),
+  direction: $("direction"),
+  rootMissing: $("root-missing"),
+  rootLocked: $("root-locked"),
+  unlock: $<HTMLButtonElement>("unlock-root"),
+  folderArea: $("folder-area"),
+  suggestions: $("suggestions"),
+  search: $<HTMLInputElement>("folder-search"),
+  results: $<HTMLUListElement>("folder-results"),
   archive: $<HTMLButtonElement>("archive"),
+  pickOther: $<HTMLButtonElement>("pick-other"),
   hint: $("save-hint"),
 };
+
+interface Option {
+  path: string;
+  reason: string;
+}
 
 let mail: MailInfo | null = null;
 let settings: Settings;
 let current: State = "loading";
 let lastState: State = "loading";
 let loadSeq = 0;
-let rememberedHandle: FileSystemDirectoryHandle | null = null;
+let busy = false;
+
+let root: FileSystemDirectoryHandle | null = null;
+let folders: FolderEntry[] | null = null; // klantmappen, één keer per sessie ingelezen
+let options: Option[] = [];
 
 /* ------------------------------------------------------------ helpers */
 
@@ -60,8 +83,28 @@ function escapeHtml(s: string) {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 }
 
+function pathHtml(p: string) {
+  const i = p.lastIndexOf("/");
+  return i < 0 ? `<b>${escapeHtml(p)}</b>` : `${escapeHtml(p.slice(0, i + 1))}<b>${escapeHtml(p.slice(i + 1))}</b>`;
+}
+
 function parts(): NameParts {
   return { date: formatIsoDate(f.date.value, settings.dateFormat), from: f.from.value, to: f.to.value, title: f.title.value };
+}
+
+function sentByMe(): boolean {
+  return !!mail && mail.from.address?.toLowerCase() === mail.me.toLowerCase();
+}
+
+/** De andere partij: afzender bij ontvangen mail, eerste externe ontvanger bij verzonden mail. */
+function counterpart() {
+  if (!mail) return undefined;
+  return sentByMe() ? mail.to.find((t) => t.address?.toLowerCase() !== mail!.me.toLowerCase()) ?? mail.to[0] : mail.from;
+}
+
+/** Inbound bij ontvangen mail, Outbound als jij de afzender bent. */
+function subfolder(): string {
+  return sentByMe() ? settings.subfolderOut : settings.subfolder;
 }
 
 function buildOptions() {
@@ -82,9 +125,7 @@ function updatePreview() {
   const list = $("attachments-preview");
   const atts = settings.saveAttachments ? attachmentNames() : [];
   list.hidden = !atts.length;
-  list.innerHTML = atts.length
-    ? `<b>Bijlagen (${atts.length})</b>` + atts.map((n) => `<div>${escapeHtml(n)}</div>`).join("")
-    : "";
+  list.innerHTML = atts.length ? `<b>Bijlagen (${atts.length})</b>` + atts.map((n) => `<div>${escapeHtml(n)}</div>`).join("") : "";
 }
 
 /** Voorbeeldnamen van de bijlagen volgens Outlook (handtekeningplaatjes niet meegeteld). */
@@ -93,21 +134,123 @@ function attachmentNames(): string[] {
   return (mail?.attachments ?? []).map((a, i) => attachmentFileName(date, i + 1, a));
 }
 
-function targetLabel(dirName: string) {
-  const sub = settings.subfolder;
-  return sub && dirName.toLowerCase() !== sub.toLowerCase() ? `${dirName} › ${sub}` : dirName;
-}
-
 function setBusy(text: string | null) {
-  const busy = text !== null;
-  f.archive.disabled = busy;
-  f.remembered.disabled = busy;
-  f.archive.textContent = busy ? text! : "Map kiezen en opslaan…";
+  busy = text !== null;
+  const needsChoice = !!root && folders !== null && !selectedPath();
+  f.archive.disabled = busy || needsChoice || (!!root && folders === null);
+  f.pickOther.disabled = busy;
+  f.unlock.disabled = busy;
+  f.archive.textContent = busy ? text! : root ? "Opslaan" : "Map kiezen en opslaan…";
 }
 
 function showWarning(text: string) {
   f.warning.hidden = false;
   f.warning.textContent = text;
+}
+
+function updateHint() {
+  const sub = subfolder();
+  const where = root ? "de klantmap" : "de map die je kiest";
+  f.hint.textContent = sub
+    ? `Komt in '${sub}' binnen ${where}, ook als die dieper ligt (bv. Information › ${sub}). Is er geen, dan wordt hij aangemaakt.`
+    : `Komt direct in ${where}.`;
+  f.direction.textContent = sentByMe() ? `verzonden → ${settings.subfolderOut || "klantmap"}` : `ontvangen → ${settings.subfolder || "klantmap"}`;
+}
+
+/* ------------------------------------------------------ klantmappen */
+
+function renderRootState() {
+  f.rootMissing.hidden = !!root || !pickerAvailable();
+  f.rootLocked.hidden = !root || folders !== null;
+  f.folderArea.hidden = !root || folders === null;
+  f.pickOther.hidden = !pickerAvailable() || !root;
+  if (root) f.unlock.innerHTML = `Klantmappen in <b>${escapeHtml(root.name)}</b> openen`;
+  setBusy(busy ? f.archive.textContent : null);
+}
+
+/** Klantmappen inlezen (vereist toestemming; vraagt die zo nodig met één melding). */
+async function openRoot(ask: boolean): Promise<boolean> {
+  if (!root) return false;
+  if (!(await hasPermission(root as any))) {
+    if (!ask || !(await ensurePermission(root as any))) return false;
+  }
+  if (!folders) {
+    f.unlock.textContent = "Mappen inlezen…";
+    folders = await listFolders(root, settings.folderDepth);
+  }
+  return true;
+}
+
+async function buildFolderOptions() {
+  if (!mail || !folders) return;
+  const known = new Set(folders.map((x) => x.path));
+  const out: Option[] = [];
+  const other = counterpart();
+  const rem = await rememberedPath(other?.address);
+  if (rem && known.has(rem.path)) {
+    out.push({ path: rem.path, reason: rem.byDomain ? "Eerder gekozen voor dit domein" : "Eerder gekozen voor deze contactpersoon" });
+  }
+  const scored = scoreFolders([...known], {
+    subject: mail.subject,
+    body: mail.body,
+    senderDomain: other?.address?.split("@")[1],
+    names: [other?.name ?? "", ...mail.to.map((t) => t.name ?? "")],
+  }).filter((x) => x.score > 0);
+  for (const sc of scored) {
+    if (out.length >= 3) break;
+    if (!out.some((o) => o.path === sc.path)) out.push({ path: sc.path, reason: "Naam komt overeen met de mail" });
+  }
+  options = out;
+  renderOptions();
+}
+
+function renderOptions(selected?: string) {
+  f.suggestions.innerHTML = options.length ? "" : `<p class="empty">Geen voorstel — zoek de klantmap hieronder.</p>`;
+  options.forEach((o, i) => {
+    const label = document.createElement("label");
+    label.className = "option";
+    label.innerHTML = `
+      <input type="radio" name="folder" value="${i}">
+      <span class="path">${pathHtml(o.path)}</span>
+      <span class="conf"></span>
+      <span class="reason">${escapeHtml(o.reason)}</span>`;
+    const input = label.querySelector("input")!;
+    input.checked = selected ? o.path === selected : i === 0;
+    input.addEventListener("change", () => setBusy(null));
+    f.suggestions.appendChild(label);
+  });
+  setBusy(null);
+}
+
+function selectedPath(): string {
+  const c = f.suggestions.querySelector<HTMLInputElement>("input[name=folder]:checked");
+  return c ? options[Number(c.value)]?.path ?? "" : "";
+}
+
+function pick(path: string) {
+  options = [{ path, reason: "Zelf gekozen" }, ...options.filter((o) => o.path !== path)];
+  renderOptions(path);
+  f.search.value = "";
+  f.results.hidden = true;
+}
+
+function onSearch() {
+  const q = f.search.value.trim().toLowerCase();
+  if (q.length < 2 || !folders) {
+    f.results.hidden = true;
+    return;
+  }
+  const terms = q.split(/\s+/);
+  const hits = folders
+    .map((x) => x.path)
+    .filter((p) => terms.every((t) => p.toLowerCase().includes(t)))
+    .sort((a, b) => a.length - b.length)
+    .slice(0, 30);
+  f.results.innerHTML = hits.length
+    ? hits.map((p, i) => `<li role="option" data-i="${i}">${pathHtml(p)}</li>`).join("")
+    : `<li aria-disabled="true">Geen klantmap gevonden</li>`;
+  f.results.hidden = false;
+  f.results.querySelectorAll<HTMLLIElement>("li[data-i]").forEach((li) => li.addEventListener("click", () => pick(hits[Number(li.dataset.i)])));
 }
 
 /* --------------------------------------------------------------- laden */
@@ -133,23 +276,17 @@ async function load() {
     f.warning.hidden = canExport();
     f.warning.textContent = canExport() ? "" : "Let op: deze Outlook-versie kan de mail niet exporteren (Mailbox 1.14 nodig).";
     updatePreview();
-    setBusy(null);
+    updateHint();
 
-    // Eerder gekozen map voor deze afzender of dit domein
-    rememberedHandle = null;
-    f.remembered.hidden = true;
-    const rem = await rememberedFor(m.from.address);
+    root ??= (await getRoot()) ?? null;
     if (seq !== loadSeq) return;
-    if (rem) {
-      rememberedHandle = rem.handle;
-      f.remembered.innerHTML = `Opslaan in <b>${escapeHtml(targetLabel(rem.handle.name))}</b><br><span class="muted small">${
-        rem.byDomain ? "eerder gekozen voor dit domein" : "eerder gekozen voor deze afzender"
-      }</span>`;
-      f.remembered.hidden = false;
-    }
-    f.hint.textContent = settings.subfolder
-      ? `Het bestand komt in de map '${settings.subfolder}' binnen de map die je kiest, ook als die dieper ligt (bv. Information › ${settings.subfolder}). Is er geen, dan wordt hij aangemaakt.`
-      : "Het bestand komt direct in de map die je kiest.";
+    options = [];
+    f.suggestions.innerHTML = "";
+    // Al toestemming (eerder deze sessie)? Dan direct de mappen tonen, zonder melding
+    if (root && folders === null) await openRoot(false).catch(() => false);
+    if (seq !== loadSeq) return;
+    renderRootState();
+    if (folders) await buildFolderOptions();
 
     if (current !== "settings") show("form");
   } catch (e: any) {
@@ -159,7 +296,7 @@ async function load() {
 
 /* ---------------------------------------------------------- opslaan */
 
-async function saveInto(dir: FileSystemDirectoryHandle) {
+async function saveInto(dir: FileSystemDirectoryHandle, relPath?: string) {
   if (!mail) return;
   setBusy("Mail ophalen…");
   const eml = await getEml();
@@ -168,8 +305,12 @@ async function saveInto(dir: FileSystemDirectoryHandle) {
   const files = await buildFiles(eml, opts);
   const extras = await buildAttachments(eml, opts);
   setBusy(extras.length ? `Opslaan (mail + ${extras.length} bijlage${extras.length > 1 ? "n" : ""})…` : "Opslaan…");
-  const res = await saveToDirectory(dir, stem(), files, settings.subfolder, extras);
-  await remember(mail.from.address, dir);
+  const res = await saveToDirectory(dir, stem(), files, subfolder(), extras);
+  if (relPath !== undefined && root) {
+    await rememberPath(counterpart()?.address, relPath);
+    // "Prospects\ACME\Information\Inbound" i.p.v. alleen "ACME\Information\Inbound"
+    res.folder = [root.name, ...relPath.split("/"), ...res.folder.split("\\").slice(1)].join("\\");
+  }
   await finish(res);
 }
 
@@ -186,18 +327,45 @@ async function finish(res: SaveResult) {
   show("done");
 }
 
-/** Hoofdknop: Verkenner-venster openen. */
-async function pickAndSave(ev?: Event) {
+/** Hoofdknop: opslaan in de gekozen klantmap, of (zonder archiefmap) via Verkenner. */
+async function onSave(ev?: Event) {
   ev?.preventDefault();
   if (!mail) return;
   f.warning.hidden = canExport();
+  if (!root) return pickAndSave();
+  try {
+    if (!(await openRoot(true))) {
+      showWarning("Geen toestemming voor de archiefmap.");
+      return;
+    }
+    const entry = folders?.find((x) => x.path === selectedPath());
+    if (!entry) {
+      renderRootState();
+      await buildFolderOptions();
+      showWarning("Kies eerst een klantmap.");
+      return;
+    }
+    await saveInto(entry.handle, entry.path);
+  } catch (e: any) {
+    setBusy(null);
+    if (e?.name === "NotFoundError") {
+      folders = null; // map verplaatst/verwijderd: opnieuw inlezen
+      showWarning("Die map bestaat niet meer. De lijst is opnieuw ingelezen; kies opnieuw.");
+      await openRoot(false).catch(() => false);
+      renderRootState();
+      await buildFolderOptions();
+    } else showWarning(e?.message ?? String(e));
+  }
+}
+
+/** Verkenner-venster (zonder archiefmap, of 'Andere map kiezen'). */
+async function pickAndSave() {
   let dir: FileSystemDirectoryHandle;
   try {
     if (!pickerAvailable()) throw Object.assign(new Error("geen picker"), { name: "NotSupportedError" });
-    dir = await pickDirectory(); // eerst kiezen: moet direct na de klik
+    dir = await pickDirectory();
   } catch (e: any) {
-    if (e?.name === "AbortError") return; // geannuleerd
-    // In een iframe (Outlook op het web / nieuwe Outlook) mag het venster niet: los dialoogvenster
+    if (e?.name === "AbortError") return;
     return viaDialog();
   }
   try {
@@ -208,19 +376,20 @@ async function pickAndSave(ev?: Event) {
   }
 }
 
-/** Knop met de onthouden map: één klik. */
-async function saveRemembered() {
-  if (!rememberedHandle) return;
+async function chooseRoot(): Promise<boolean> {
   try {
-    const ok = await ensurePermission(rememberedHandle as any);
-    if (!ok) return pickAndSave();
-    await saveInto(rememberedHandle);
+    const h = await pickDirectory();
+    await setRoot(h);
+    root = h;
+    folders = null;
+    await openRoot(true);
+    renderRootState();
+    await buildFolderOptions();
+    updateHint();
+    return true;
   } catch (e: any) {
-    setBusy(null);
-    if (e?.name === "NotFoundError") {
-      showWarning("De onthouden map bestaat niet meer. Kies een andere map.");
-      f.remembered.hidden = true;
-    } else showWarning(e?.message ?? String(e));
+    if (e?.name !== "AbortError") showWarning(e?.message ?? String(e));
+    return false;
   }
 }
 
@@ -244,12 +413,7 @@ function viaDialog() {
           const b64 = toBase64(await getEml());
           const size = 200_000;
           const total = Math.max(1, Math.ceil(b64.length / size));
-          dialog.messageChild(
-            JSON.stringify({
-              type: "meta",
-              meta: { stem: stem(), subfolder: settings.subfolder, ...buildOptions(), total },
-            }),
-          );
+          dialog.messageChild(JSON.stringify({ type: "meta", meta: { stem: stem(), subfolder: subfolder(), ...buildOptions(), total } }));
           for (let i = 0; i < total; i++) {
             dialog.messageChild(JSON.stringify({ type: "chunk", i, data: b64.slice(i * size, (i + 1) * size) }));
           }
@@ -265,11 +429,9 @@ function viaDialog() {
         showWarning(msg.message);
       }
     });
-    dialog.addEventHandler(Office.EventType.DialogEventReceived, () => setBusy(null)); // venster gesloten
+    dialog.addEventHandler(Office.EventType.DialogEventReceived, () => setBusy(null));
   });
 }
-
-/* ------------------------------------------- laatste terugval: download */
 
 async function downloadFallback() {
   if (!mail) return;
@@ -278,18 +440,15 @@ async function downloadFallback() {
     const eml = await getEml();
     const files = (await buildFiles(eml, buildOptions())).map((x) => ({ ...x, name: `${stem()}.${x.ext}` }));
     const all = [...files, ...(await buildAttachments(eml, buildOptions()))];
-    const names: string[] = [];
     for (const file of all) {
-      const name = file.name;
       const a = document.createElement("a");
       a.href = URL.createObjectURL(new Blob([file.data as Uint8Array<ArrayBuffer>], { type: file.type }));
-      a.download = name;
+      a.download = file.name;
       document.body.appendChild(a);
       a.click();
       a.remove();
-      names.push(name);
     }
-    await finish({ folder: "Gedownload (deze Outlook kan geen mapkeuzevenster openen)", names });
+    await finish({ folder: "Gedownload (deze Outlook kan geen mapkeuzevenster openen)", names: all.map((x) => x.name) });
   } catch (e: any) {
     setBusy(null);
     showWarning(e?.message ?? String(e));
@@ -299,18 +458,24 @@ async function downloadFallback() {
 /* ---------------------------------------------------------- instellingen */
 
 const s = {
+  root: $("s-root"),
+  depth: $<HTMLSelectElement>("s-depth"),
   dateFmt: $<HTMLSelectElement>("s-datefmt"),
   atts: $<HTMLInputElement>("s-atts"),
   sub: $<HTMLInputElement>("s-sub"),
+  subOut: $<HTMLInputElement>("s-sub-out"),
   category: $<HTMLInputElement>("s-category"),
   template: $<HTMLInputElement>("s-template"),
 };
 
 function openSettings() {
   settings = getSettings();
+  s.root.textContent = root ? root.name : "Nog niet gekozen";
+  s.depth.value = String(settings.folderDepth);
   s.dateFmt.value = settings.dateFormat;
   s.atts.checked = settings.saveAttachments;
   s.sub.value = settings.subfolder;
+  s.subOut.value = settings.subfolderOut;
   s.category.value = settings.category;
   s.template.value = settings.template;
   document.querySelectorAll<HTMLInputElement>("input[name=s-format]").forEach((r) => (r.checked = r.value === settings.format));
@@ -319,11 +484,16 @@ function openSettings() {
 
 async function saveSettings(ev: SubmitEvent) {
   ev.preventDefault();
+  const clean = (v: string) => v.trim().replace(/[\\/:*?"<>|]/g, "");
+  const depth = Number(s.depth.value) || 1;
+  if (depth !== settings.folderDepth) folders = null;
   settings = {
     format: (document.querySelector<HTMLInputElement>("input[name=s-format]:checked")?.value ?? "msg") as Format,
     dateFormat: s.dateFmt.value as DateFormat,
     saveAttachments: s.atts.checked,
-    subfolder: s.sub.value.trim().replace(/[\\/:*?"<>|]/g, ""),
+    subfolder: clean(s.sub.value),
+    subfolderOut: clean(s.subOut.value),
+    folderDepth: depth,
     category: s.category.value.trim(),
     template: s.template.value.trim() || DEFAULT_TEMPLATE,
   };
@@ -337,15 +507,29 @@ async function saveSettings(ev: SubmitEvent) {
 Office.onReady(() => {
   settings = getSettings();
   for (const el of [f.date, f.from, f.to, f.title]) el.addEventListener("input", updatePreview);
-  sections.form.addEventListener("submit", (e) => void pickAndSave(e));
-  f.remembered.addEventListener("click", () => void saveRemembered());
+  f.search.addEventListener("input", onSearch);
+  sections.form.addEventListener("submit", (e) => void onSave(e));
+  f.pickOther.addEventListener("click", () => void pickAndSave());
+  $("choose-root").addEventListener("click", () => void chooseRoot());
+  f.unlock.addEventListener("click", async () => {
+    try {
+      if (await openRoot(true)) await buildFolderOptions();
+      else showWarning("Geen toestemming gekregen. Probeer opnieuw.");
+    } catch (e: any) {
+      showWarning(e?.message ?? String(e));
+    } finally {
+      renderRootState();
+    }
+  });
   $("retry").addEventListener("click", () => void load());
   $("back").addEventListener("click", () => void load());
   $("toggle-settings").addEventListener("click", () => (current === "settings" ? show(lastState) : openSettings()));
   sections.settings.addEventListener("submit", (e) => void saveSettings(e as SubmitEvent));
   $("s-cancel").addEventListener("click", () => show(lastState));
+  $("s-choose-root").addEventListener("click", async () => {
+    if (await chooseRoot()) s.root.textContent = root!.name;
+  });
 
-  // Vastgepind paneel: nieuwe mail geselecteerd
   Office.context.mailbox.addHandlerAsync(Office.EventType.ItemChanged, () => void load());
   void load();
 });

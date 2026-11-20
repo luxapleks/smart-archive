@@ -245,3 +245,5 @@ main.dialog { padding: 18px; display: flex; flex-direction: column; gap: 10px; }
 .save-actions { display: flex; flex-direction: column; gap: 8px; }
 .btn.remembered { text-align: left; font-weight: 500; }
 .btn.remembered b { font-weight: 600; }
+#root-missing .btn, #root-locked .btn { width: 100%; margin-top: 6px; }
+#folder-area { margin-bottom: 8px; }

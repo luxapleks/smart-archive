@@ -42,10 +42,25 @@
         </fieldset>
 
         <fieldset>
-          <legend>Opslaan</legend>
+          <legend>Map <span id="direction" class="badge"></span></legend>
+          <div id="root-missing" class="notice" hidden>
+            Kies eenmalig je archiefmap (bv. <i>2. Prospects</i>). Daarna kies je de klantmap hier in het paneel.
+            <button id="choose-root" class="btn secondary" type="button">Archiefmap kiezen…</button>
+          </div>
+          <div id="root-locked" hidden>
+            <button id="unlock-root" class="btn secondary" type="button"></button>
+            <p class="muted small">Eén keer toestemming per Outlook-sessie. Valt de melding buiten beeld? Maak het paneel breder door de linkerrand te slepen.</p>
+          </div>
+          <div id="folder-area" hidden>
+            <div id="suggestions" role="radiogroup" aria-label="Voorgestelde klantmappen"></div>
+            <div class="search">
+              <input id="folder-search" type="search" placeholder="Klantmap zoeken…" aria-label="Klantmap zoeken" />
+              <ul id="folder-results" role="listbox" hidden></ul>
+            </div>
+          </div>
           <div class="save-actions">
-            <button id="save-remembered" class="btn secondary remembered" type="button" hidden></button>
-            <button id="archive" class="btn primary" type="submit">Map kiezen en opslaan…</button>
+            <button id="archive" class="btn primary" type="submit">Opslaan</button>
+            <button id="pick-other" class="btn secondary" type="button">Andere map kiezen via Verkenner…</button>
           </div>
           <p id="save-hint" class="muted small"></p>
         </fieldset>
@@ -68,6 +83,20 @@
       <!-- ===================== instellingen ===================== -->
       <form id="state-settings" hidden autocomplete="off">
         <fieldset>
+          <legend>Archiefmap</legend>
+          <p id="s-root" class="preview"></p>
+          <div class="row">
+            <button id="s-choose-root" class="btn secondary" type="button">Archiefmap kiezen…</button>
+          </div>
+          <label>Klantmappen liggen
+            <select id="s-depth">
+              <option value="1">direct in de archiefmap</option>
+              <option value="2">één niveau dieper (bv. per jaar of letter)</option>
+            </select>
+          </label>
+        </fieldset>
+
+        <fieldset>
           <legend>Opslaan</legend>
           <div class="radios">
             <label class="check"><input type="radio" name="s-format" value="msg" /> .msg (Outlook-bestand)</label>
@@ -82,8 +111,11 @@
               <option value="jjjj-mm-dd">jjjj-mm-dd (2026-11-20)</option>
             </select>
           </label>
-          <label>Opslaan in submap (zoekt een bestaande map, ook dieper; leeg = direct in de gekozen map)
+          <label>Submap voor ontvangen mail (zoekt een bestaande map, ook dieper; leeg = direct in de klantmap)
             <input id="s-sub" type="text" maxlength="60" />
+          </label>
+          <label>Submap voor verzonden mail (jij bent de afzender)
+            <input id="s-sub-out" type="text" maxlength="60" />
           </label>
           <label>Categorie na archiveren (leeg = geen)
             <input id="s-category" type="text" maxlength="40" />
