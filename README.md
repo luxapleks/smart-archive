@@ -10,7 +10,7 @@ Sla een mail op als bestand met een naam die wél iets zegt, in de goede map:
 
 ## Wat de add-in doet
 
-1. **Bestandsnaam**: `datum - afzender - ontvanger - onderwerp`, met de datum standaard als `jjmmdd` (bv. `261120`)
+1. **Bestandsnaam**: `datum - afzender - ontvanger - onderwerp`, met de datum standaard als `jjmmdd` en een pijl tussen afzender en ontvanger: `261120 - JdeVries→ANiemeijer - onderwerp`
    - RE:/FW:/Antw:/Doorst:/[EXTERN] worden weggehaald; is het onderwerp leeg, dan wordt de eerste zin van de mail gebruikt.
    - Namen worden ingekort tot voorletter + achternaam zonder spaties: `Jürgen de Vries` → `JdeVries`, "Niemeijer, Alexander" → `ANiemeijer`.
    - "Jansen, Piet" wordt "Piet Jansen". Bij verzonden mail wordt de externe ontvanger gekozen.

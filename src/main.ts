@@ -1,4 +1,4 @@
-import { buildFileName, formatIsoDate, type NameParts } from "./shared/naming";
+import { buildFileName, DEFAULT_TEMPLATE, formatIsoDate, type NameParts } from "./shared/naming";
 import { suggestParts, type MailInfo } from "./shared/labels";
 import { addCategory, canExport, getEml, readCurrentMail } from "./mail";
 import { buildFiles, toBase64 } from "./build";
@@ -297,7 +297,7 @@ async function saveSettings(ev: SubmitEvent) {
     dateFormat: s.dateFmt.value as DateFormat,
     subfolder: s.sub.value.trim().replace(/[\\/:*?"<>|]/g, ""),
     category: s.category.value.trim(),
-    template: s.template.value.trim() || "{date} - {from} - {to} - {title}",
+    template: s.template.value.trim() || DEFAULT_TEMPLATE,
   };
   await setSettings(settings);
   show("loading");

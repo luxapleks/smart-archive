@@ -33,7 +33,7 @@ test("parts for received and sent mail", () => {
   assert.deepEqual(rec, { date: "2026-11-09", from: "JdeVries", to: "ANiemeijer", title: "Concept SPA Project Alpha" });
   assert.equal(
     buildFileName(rec, "msg"),
-    "2026-11-09 - JdeVries - ANiemeijer - Concept SPA Project Alpha.msg",
+    "2026-11-09 - JdeVries→ANiemeijer - Concept SPA Project Alpha.msg",
   );
 
   const sent = suggestParts({
@@ -46,3 +46,7 @@ test("parts for received and sent mail", () => {
   assert.equal(sent.date, "2026-11-10");
 });
 
+
+test("arrow template drops cleanly when recipient is empty", () => {
+  assert.equal(buildFileName({ date: "261120", from: "JdeVries", to: "", title: "T" }, "msg"), "261120 - JdeVries - T.msg");
+});

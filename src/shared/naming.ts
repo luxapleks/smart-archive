@@ -12,7 +12,7 @@ export interface NameParts {
   title: string;
 }
 
-export const DEFAULT_TEMPLATE = "{date} - {from} - {to} - {title}";
+export const DEFAULT_TEMPLATE = "{date} - {from}→{to} - {title}";
 export const MAX_FILE_NAME = 150;
 
 const REPLY_PREFIX =
