@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="nl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Slim archiveren</title>
+    <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <header class="bar">
+      <span class="bar-title" id="bar-title">Archiveren</span>
+      <button id="toggle-settings" class="icon-btn" type="button" title="Instellingen" aria-label="Instellingen">⚙</button>
+    </header>
+    <main id="app">
+      <section id="state-loading" class="state">
+        <div class="spinner" aria-hidden="true"></div>
+        <p>Mail lezen…</p>
+      </section>
+
+      <section id="state-error" class="state" hidden>
+        <p class="error-title">Er ging iets mis</p>
+        <p id="error-text" class="muted"></p>
+        <button id="retry" class="btn secondary" type="button">Opnieuw proberen</button>
+      </section>
+
+      <!-- ===================== archiveren ===================== -->
+      <form id="state-form" hidden autocomplete="off">
+        <div id="warning" class="notice" hidden></div>
+
+        <fieldset>
+          <legend>Bestandsnaam</legend>
+          <div class="grid">
+            <label>Datum<input id="f-date" type="date" required /></label>
+            <label>Van<input id="f-from" type="text" maxlength="60" /></label>
+            <label>Aan<input id="f-to" type="text" maxlength="60" /></label>
+          </div>
+          <label>Onderwerp<input id="f-title" type="text" maxlength="100" required /></label>
+          <p id="preview" class="preview" title="Zo wordt het bestand opgeslagen"></p>
+          <p id="original" class="muted small"></p>
+        </fieldset>
+
+        <fieldset>
+          <legend>Map</legend>
+          <div id="no-folders" class="notice" hidden>
+            Nog geen archiefmappen ingesteld. <a href="#" id="open-settings">Mappen instellen</a> voor mapvoorstellen,
+            of archiveer alleen met de nieuwe naam.
+          </div>
+          <div id="suggestions" role="radiogroup" aria-label="Voorgestelde mappen"></div>
+          <div class="search">
+            <input id="folder-search" type="search" placeholder="Andere map zoeken of nieuw pad typen…" aria-label="Map zoeken" />
+            <ul id="folder-results" role="listbox" hidden></ul>
+          </div>
+        </fieldset>
+
+        <button id="archive" class="btn primary" type="submit">Archiveren</button>
+      </form>
+
+      <!-- ===================== klaar ===================== -->
+      <section id="state-done" hidden>
+        <div class="done-head">
+          <div class="done-icon" aria-hidden="true">✓</div>
+          <div>
+            <p class="done-title">Bestand klaar</p>
+            <p id="done-sub" class="muted small"></p>
+          </div>
+        </div>
+
+        <div id="file-chip" class="file-chip" title="Sleep naar een map in Verkenner">
+          <span class="file-ext" id="file-ext">MSG</span>
+          <span id="file-name" class="file-name"></span>
+        </div>
+
+        <ol class="steps">
+          <li id="step-save"></li>
+          <li>Of sleep het bestand hierboven direct naar de map in Verkenner.</li>
+        </ol>
+        <p id="done-path" class="preview"></p>
+        <p id="done-warning" class="notice" hidden></p>
+
+        <div class="row">
+          <button id="again" class="btn secondary" type="button">Opnieuw downloaden</button>
+          <button id="copy-path" class="btn secondary" type="button">Pad kopiëren</button>
+        </div>
+      </section>
+
+      <!-- ===================== instellingen ===================== -->
+      <form id="state-settings" hidden autocomplete="off">
+        <fieldset>
+          <legend>Archiefmap op je computer</legend>
+          <label>Basispad (de gesynchroniseerde SharePoint/Teams-map)
+            <input id="s-base" type="text" placeholder="C:\Users\jij\Baker Tilly\TAS - Dossiers" spellcheck="false" />
+          </label>
+          <p class="muted small">Tip: open de map in Verkenner, klik in de adresbalk en kopieer het pad.</p>
+        </fieldset>
+
+        <fieldset>
+          <legend>Mappen <span id="s-count" class="badge"></span></legend>
+          <div class="row">
+            <button id="s-import" class="btn secondary" type="button">Lijst importeren (.txt)</button>
+            <button id="s-pick" class="btn secondary" type="button">Map kiezen…</button>
+          </div>
+          <input id="s-import-file" type="file" accept=".txt,text/plain" hidden />
+          <input id="s-pick-dir" type="file" webkitdirectory multiple hidden />
+          <details class="help">
+            <summary>Mappenlijst maken met PowerShell (aanbevolen)</summary>
+            <p class="small">Plak in PowerShell (pas het pad aan). Er komt een bestand <code>mappen.txt</code> op je bureaublad dat je hierboven importeert.</p>
+            <pre id="ps-cmd" class="preview"></pre>
+            <button id="copy-ps" class="btn secondary" type="button">Commando kopiëren</button>
+          </details>
+          <label>Of plak / bewerk paden (één per regel, relatief aan het basispad)
+            <textarea id="s-folders" rows="8" spellcheck="false"></textarea>
+          </label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Opslaan</legend>
+          <div class="radios">
+            <label class="check"><input type="radio" name="s-format" value="msg" /> .msg (Outlook-bestand)</label>
+            <label class="check"><input type="radio" name="s-format" value="eml" /> .eml (origineel, onbewerkt)</label>
+          </div>
+          <label class="check"><input id="s-copy" type="checkbox" /> Volledig pad naar klembord kopiëren</label>
+          <label>Categorie na archiveren (leeg = geen)
+            <input id="s-category" type="text" maxlength="40" />
+          </label>
+          <label>Naamopbouw
+            <input id="s-template" type="text" spellcheck="false" />
+          </label>
+          <p class="muted small">Gebruik {date} {from} {to} {title}. Lege delen vallen weg.</p>
+        </fieldset>
+
+        <div class="row">
+          <button class="btn primary" type="submit">Opslaan</button>
+          <button id="s-cancel" class="btn secondary" type="button">Annuleren</button>
+        </div>
+        <p class="muted small privacy">Alles gebeurt lokaal in Outlook: er gaat geen mail naar een server of AI.</p>
+      </form>
+    </main>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>

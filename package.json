@@ -1,0 +1,27 @@
+{
+  "name": "slim-archiveren-lite",
+  "version": "0.1.0",
+  "description": "Outlook-add-in: mails archiveren met een duidelijke bestandsnaam en mapvoorstel, volledig lokaal (geen server, geen AI)",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build && node scripts/make-manifest.mjs",
+    "test": "tsx --test test/*.test.ts",
+    "certs": "office-addin-dev-certs install"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@tutao/oxmsg": "^0.2.3",
+    "buffer": "^6.0.3",
+    "postal-mime": "^4.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@types/office-js": "^1.0.616",
+    "office-addin-dev-certs": "^3.0.1",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.7"
+  },
+  "private": true,
+  "type": "module"
+}
