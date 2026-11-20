@@ -20,6 +20,6 @@ export default defineConfig(async ({ command }) => ({
   build: {
     outDir: "dist",
     target: "es2020",
-    rollupOptions: { input: { taskpane: "taskpane.html" } },
+    rollupOptions: { input: { taskpane: "taskpane.html", dialog: "dialog.html" } },
   },
 }));

@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="nl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Map kiezen</title>
+    <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <main class="dialog">
+      <p class="done-title">Map kiezen</p>
+      <p id="d-status" class="muted small">Mail ontvangen…</p>
+      <p id="d-name" class="preview" hidden></p>
+      <button id="d-pick" class="btn primary" type="button" disabled>Map kiezen en opslaan…</button>
+      <p class="muted small">Het bestand komt in de submap <b id="d-sub">Inbound</b> van de map die je kiest.</p>
+    </main>
+    <script type="module" src="./src/dialog.ts"></script>
+  </body>
+</html>

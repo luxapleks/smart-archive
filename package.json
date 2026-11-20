@@ -12,6 +12,7 @@
   "dependencies": {
     "@tutao/oxmsg": "^0.2.3",
     "buffer": "^6.0.3",
+    "jspdf": "^4.2.1",
     "postal-mime": "^4.2.0"
   },
   "devDependencies": {

@@ -41,19 +41,13 @@
         </fieldset>
 
         <fieldset>
-          <legend>Map</legend>
-          <div id="no-folders" class="notice" hidden>
-            Nog geen archiefmappen ingesteld. <a href="#" id="open-settings">Mappen instellen</a> voor mapvoorstellen,
-            of archiveer alleen met de nieuwe naam.
+          <legend>Opslaan</legend>
+          <div class="save-actions">
+            <button id="save-remembered" class="btn secondary remembered" type="button" hidden></button>
+            <button id="archive" class="btn primary" type="submit">Map kiezen en opslaan…</button>
           </div>
-          <div id="suggestions" role="radiogroup" aria-label="Voorgestelde mappen"></div>
-          <div class="search">
-            <input id="folder-search" type="search" placeholder="Andere map zoeken of nieuw pad typen…" aria-label="Map zoeken" />
-            <ul id="folder-results" role="listbox" hidden></ul>
-          </div>
+          <p id="save-hint" class="muted small"></p>
         </fieldset>
-
-        <button id="archive" class="btn primary" type="submit">Archiveren</button>
       </form>
 
       <!-- ===================== klaar ===================== -->
@@ -61,65 +55,27 @@
         <div class="done-head">
           <div class="done-icon" aria-hidden="true">✓</div>
           <div>
-            <p class="done-title">Bestand klaar</p>
+            <p class="done-title">Opgeslagen</p>
             <p id="done-sub" class="muted small"></p>
           </div>
         </div>
-
-        <div id="file-chip" class="file-chip" title="Sleep naar een map in Verkenner">
-          <span class="file-ext" id="file-ext">MSG</span>
-          <span id="file-name" class="file-name"></span>
-        </div>
-
-        <ol class="steps">
-          <li id="step-save"></li>
-          <li>Of sleep het bestand hierboven direct naar de map in Verkenner.</li>
-        </ol>
-        <p id="done-path" class="preview"></p>
+        <ul id="done-files" class="steps"></ul>
         <p id="done-warning" class="notice" hidden></p>
-
-        <div class="row">
-          <button id="again" class="btn secondary" type="button">Opnieuw downloaden</button>
-          <button id="copy-path" class="btn secondary" type="button">Pad kopiëren</button>
-        </div>
+        <button id="back" class="btn secondary" type="button">Terug</button>
       </section>
 
       <!-- ===================== instellingen ===================== -->
       <form id="state-settings" hidden autocomplete="off">
-        <fieldset>
-          <legend>Archiefmap op je computer</legend>
-          <label>Basispad (de gesynchroniseerde SharePoint/Teams-map)
-            <input id="s-base" type="text" placeholder="C:\Users\jij\Baker Tilly\TAS - Dossiers" spellcheck="false" />
-          </label>
-          <p class="muted small">Tip: open de map in Verkenner, klik in de adresbalk en kopieer het pad.</p>
-        </fieldset>
-
-        <fieldset>
-          <legend>Mappen <span id="s-count" class="badge"></span></legend>
-          <div class="row">
-            <button id="s-import" class="btn secondary" type="button">Lijst importeren (.txt)</button>
-            <button id="s-pick" class="btn secondary" type="button">Map kiezen…</button>
-          </div>
-          <input id="s-import-file" type="file" accept=".txt,text/plain" hidden />
-          <input id="s-pick-dir" type="file" webkitdirectory multiple hidden />
-          <details class="help">
-            <summary>Mappenlijst maken met PowerShell (aanbevolen)</summary>
-            <p class="small">Plak in PowerShell (pas het pad aan). Er komt een bestand <code>mappen.txt</code> op je bureaublad dat je hierboven importeert.</p>
-            <pre id="ps-cmd" class="preview"></pre>
-            <button id="copy-ps" class="btn secondary" type="button">Commando kopiëren</button>
-          </details>
-          <label>Of plak / bewerk paden (één per regel, relatief aan het basispad)
-            <textarea id="s-folders" rows="8" spellcheck="false"></textarea>
-          </label>
-        </fieldset>
-
         <fieldset>
           <legend>Opslaan</legend>
           <div class="radios">
             <label class="check"><input type="radio" name="s-format" value="msg" /> .msg (Outlook-bestand)</label>
             <label class="check"><input type="radio" name="s-format" value="eml" /> .eml (origineel, onbewerkt)</label>
           </div>
-          <label class="check"><input id="s-copy" type="checkbox" /> Volledig pad naar klembord kopiëren</label>
+          <label class="check"><input id="s-pdf" type="checkbox" /> Ook een PDF opslaan</label>
+          <label>Submap in de gekozen map (leeg = direct in de gekozen map)
+            <input id="s-sub" type="text" maxlength="60" />
+          </label>
           <label>Categorie na archiveren (leeg = geen)
             <input id="s-category" type="text" maxlength="40" />
           </label>

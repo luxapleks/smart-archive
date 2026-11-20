@@ -1,4 +1,4 @@
-# Slim archiveren (lite) – Outlook-add-in
+# Smart archive – Outlook-add-in
 
 Sla een mail op als bestand met een naam die wél iets zegt, in de goede map:
 
@@ -16,8 +16,8 @@ Sla een mail op als bestand met een naam die wél iets zegt, in de goede map:
    - "Jansen, Piet" wordt "Piet Jansen". Bij verzonden mail wordt de externe ontvanger gekozen.
    - Tekens die Windows/SharePoint weigeren worden verwijderd; de naam is maximaal 150 tekens.
    - Alles is aan te passen; de naam wordt live getoond.
-2. **Mapvoorstel**: maximaal 3 mappen uit je eigen mappenlijst, op basis van trefwoorden (afzenderdomein, onderwerp, tekst) en de map die je eerder voor deze afzender of dit domein koos. Via de zoekbox kies je elke andere map of typ je een pad.
-3. **Archiveren**: de volledige mail (incl. bijlagen en headers) wordt in Outlook zelf omgezet naar `.msg` (of `.eml`) en als download aangeboden. Het volledige doelpad staat dan op je klembord. Plak dat in het opslagvenster (Ctrl+V, Enter) en het bestand staat in de juiste SharePoint-map. Je kunt het bestand ook naar Verkenner slepen.
+2. **Opslaan**: klik op *Map kiezen en opslaan…* en kies in het Verkenner-venster de (klant)map. De mail komt in de submap **Inbound** van die map; bestaat die nog niet, dan wordt hij aangemaakt. De gekozen map wordt per afzender en per domein onthouden: de volgende keer is het één klik.
+3. **Twee bestanden**: de mail als `.msg` (of `.eml`) én als doorzoekbare **PDF** (kop met afzender, ontvangers, datum, onderwerp en bijlagen, gevolgd door de tekst). Bestaat de naam al, dan krijgen beide bestanden hetzelfde volgnummer, bv. `… (2).msg` en `… (2).pdf`.
 4. De mail krijgt de categorie **Gearchiveerd** (maak die categorie eenmalig aan in Outlook).
 
 ## Installatie (zonder IT)
@@ -39,13 +39,12 @@ De knop **Slim archiveren** verschijnt daarna ook in nieuwe Outlook en classic O
 
 Zie je de optie *Aangepaste invoegtoepassingen* niet, dan heeft IT het zelf toevoegen uitgezet (Exchange-rol *My Custom Apps*).
 
-### 3. Instellen (⚙ in het paneel)
+### 3. Instellen (⚙ in het paneel, optioneel)
 
-1. **Basispad**: de map van je gesynchroniseerde SharePoint/Teams-bibliotheek, bijvoorbeeld `C:\Users\jij\Baker Tilly\TAS - Dossiers` (kopieer het uit de adresbalk van Verkenner). Synchroniseer de bibliotheek eerst via *Synchroniseren* of *Snelkoppeling toevoegen aan Mijn bestanden* in SharePoint.
-2. **Mappen**: het handigst met de PowerShell-regel uit de instellingen (knop *Commando kopiëren*). Die zet een `mappen.txt` op je bureaublad, die je via *Lijst importeren* inleest. Je kunt de paden ook plakken of met *Map kiezen…* een map aanwijzen (die optie toont alleen mappen waarin bestanden staan).
-3. **Opslaan als** `.msg` (standaard) of `.eml`.
+- Formaat `.msg` (standaard) of `.eml`, PDF aan/uit, naam van de submap (standaard `Inbound`), categorie en naamopbouw.
+- Maak in Outlook eenmalig de categorie **Gearchiveerd** aan.
 
-Tip: zet in Edge *Instellingen → Downloads → Vragen waar elk bestand moet worden opgeslagen* aan. Dan krijg je altijd het opslagvenster waarin je het gekopieerde pad plakt.
+Als het Verkenner-venster in het paneel niet mag (Outlook op het web/nieuwe Outlook draaien het paneel in een iframe), opent de add-in een apart venster om de map te kiezen. Kan dat ook niet, dan worden de bestanden gedownload.
 
 ## Lokaal ontwikkelen
 
@@ -60,8 +59,6 @@ npm test
 ## Vereisten en beperkingen
 
 - Exporteren van de mail vereist Mailbox-API 1.14: nieuwe Outlook, Outlook op het web en een recente classic Outlook (Microsoft 365). Op oudere versies toont de add-in een melding.
-- Downloads werken in Outlook op het web en op Windows. In Outlook voor **Mac** werken downloads uit add-ins niet goed; slepen kan daar wel een alternatief zijn.
-- Hoe de download zich gedraagt (opslagvenster of direct naar *Downloads*) hangt af van je browser/Outlook-instellingen. Test dat bij jezelf.
-- Een getypt pad naar een map die nog niet bestaat werkt niet in het opslagvenster: maak die map eerst aan in Verkenner.
-- Mapvoorstellen gaan op trefwoorden, niet met AI. De volledige versie (met Azure OpenAI en directe upload naar SharePoint) staat in de andere projectmap en vraagt een app-registratie via IT.
+- Het Verkenner-venster gebruikt de File System Access API van Edge/WebView2. In Outlook voor Mac werkt dit niet.
+- De PDF bevat de tekst van de mail (geen opmaak of afbeeldingen uit de mail); bijlagen worden genoemd maar niet in de PDF opgenomen. De volledige versie (met Azure OpenAI en directe upload naar SharePoint) staat in de andere projectmap en vraagt een app-registratie via IT.
 - De `.msg` wordt gemaakt met `@tutao/oxmsg` (MIT, port van MsgKit). Die is gecontroleerd met twee onafhankelijke .msg-lezers, maar nog niet in Outlook zelf geopend: open de eerste paar bestanden ter controle. Bij problemen: kies `.eml`.

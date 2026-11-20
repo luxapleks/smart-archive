@@ -241,3 +241,7 @@ kbd {
   padding: 0 4px;
 }
 .option.custom .path::before { content: "pad: "; color: var(--accent); font-weight: 600; }
+main.dialog { padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+.save-actions { display: flex; flex-direction: column; gap: 8px; }
+.btn.remembered { text-align: left; font-weight: 500; }
+.btn.remembered b { font-weight: 600; }
