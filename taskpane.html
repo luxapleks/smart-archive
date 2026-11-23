@@ -70,24 +70,68 @@
       <!-- ===================== klaar ===================== -->
       <section id="state-done" hidden>
         <div class="celebrate" id="celebrate" aria-hidden="true">
-          <svg class="stash" viewBox="0 0 120 100" width="132" height="110">
-            <!-- achterkant van de map -->
-            <path class="folder-back" d="M14 30 h30 l8 8 h54 a4 4 0 0 1 4 4 v46 a4 4 0 0 1 -4 4 H14 a4 4 0 0 1 -4 -4 V34 a4 4 0 0 1 4 -4z" />
-            <!-- het mailtje dat erin valt -->
-            <g class="letter">
-              <rect x="38" y="8" width="44" height="32" rx="3" />
-              <path d="M38 11 l22 16 l22 -16" />
+          <svg class="captain" viewBox="0 0 120 150" width="112" height="140">
+            <ellipse class="shadow" cx="60" cy="143" rx="26" ry="4" />
+            <g class="body">
+              <!-- benen en laarzen -->
+              <rect x="48" y="98" width="10" height="34" rx="3" fill="#1b2f57" />
+              <rect x="62" y="98" width="10" height="34" rx="3" fill="#1b2f57" />
+              <rect x="45" y="130" width="15" height="9" rx="4" fill="#1a1a1a" />
+              <rect x="60" y="130" width="15" height="9" rx="4" fill="#1a1a1a" />
+              <!-- linkerarm (in de zij) -->
+              <rect x="76" y="62" width="9" height="36" rx="4.5" fill="#24427a" />
+              <circle cx="80.5" cy="100" r="5" fill="#fff" stroke="#d6d6d6" />
+              <!-- jas -->
+              <rect x="41" y="56" width="38" height="46" rx="9" fill="#24427a" />
+              <path d="M53 56 L60 66 L67 56 Z" fill="#fff" />
+              <path d="M44 60 L76 92" stroke="#c62f3a" stroke-width="5" />
+              <circle cx="54" cy="72" r="1.8" fill="#f2c14e" /><circle cx="54" cy="80" r="1.8" fill="#f2c14e" /><circle cx="54" cy="88" r="1.8" fill="#f2c14e" />
+              <circle cx="66" cy="72" r="1.8" fill="#f2c14e" /><circle cx="66" cy="80" r="1.8" fill="#f2c14e" /><circle cx="66" cy="88" r="1.8" fill="#f2c14e" />
+              <rect x="41" y="92" width="38" height="5" fill="#1a1a1a" />
+              <rect x="56" y="91" width="8" height="7" rx="1.5" fill="#f2c14e" />
+              <!-- schouderstukken -->
+              <rect x="38" y="57" width="12" height="5" rx="2.5" fill="#f2c14e" />
+              <rect x="70" y="57" width="12" height="5" rx="2.5" fill="#f2c14e" />
+              <!-- medaille (bij mijlpalen) -->
+              <g class="medal">
+                <path d="M64 62 l4 9 l4 -9 z" fill="#c62f3a" />
+                <circle cx="68" cy="74" r="5" fill="#f2c14e" stroke="#c9952a" />
+                <text x="68" y="76.6" text-anchor="middle" font-size="6.5" font-weight="700" fill="#8a5d00">Q</text>
+              </g>
+              <!-- hoofd -->
+              <rect x="55" y="50" width="10" height="8" fill="#f1c39b" />
+              <circle cx="60" cy="40" r="15" fill="#f6cfa8" />
+              <circle cx="45.5" cy="41" r="3" fill="#f1c39b" /><circle cx="74.5" cy="41" r="3" fill="#f1c39b" />
+              <g class="eyes">
+                <circle cx="54.5" cy="40" r="1.9" fill="#222" />
+                <circle cx="65.5" cy="40" r="1.9" fill="#222" />
+              </g>
+              <path d="M51 36.5 q3.5 -2 7 0 M62 36.5 q3.5 -2 7 0" stroke="#5a3a22" stroke-width="1.4" fill="none" stroke-linecap="round" />
+              <path d="M52 47 q4 -3 8 0 q4 -3 8 0 q-4 3 -8 1 q-4 2 -8 -1z" fill="#6b4226" />
+              <path d="M56 50.5 q4 2.5 8 0" stroke="#a0522d" stroke-width="1.3" fill="none" stroke-linecap="round" />
+              <!-- pet -->
+              <path d="M43 30 q1 -16 17 -18 q16 2 17 18 z" fill="#1b2f57" />
+              <rect x="43" y="27" width="34" height="5" fill="#c62f3a" />
+              <path d="M42 31.5 q18 7 36 0 l0 2.5 q-18 7 -36 0 z" fill="#111" />
+              <circle cx="60" cy="21" r="5" fill="#f2c14e" stroke="#c9952a" />
+              <text x="60" y="23.4" text-anchor="middle" font-size="6.5" font-weight="700" fill="#8a5d00">Q</text>
+              <!-- rechterarm: salueert -->
+              <g class="arm-upper">
+                <rect x="37.5" y="62" width="9" height="20" rx="4.5" fill="#24427a" />
+                <g class="arm-fore">
+                  <rect x="38" y="80" width="8" height="22" rx="4" fill="#24427a" />
+                  <circle cx="42" cy="104" r="5" fill="#fff" stroke="#d6d6d6" />
+                </g>
+              </g>
             </g>
-            <!-- voorkant van de map -->
-            <path class="folder-front" d="M10 48 a4 4 0 0 1 4 -4 h92 a4 4 0 0 1 4 4 v40 a4 4 0 0 1 -4 4 H14 a4 4 0 0 1 -4 -4z" />
-            <!-- vinkje -->
-            <circle class="okbadge" cx="96" cy="78" r="15" />
-            <path class="tick" d="M89 78 l5 5 l9 -10" />
           </svg>
+          <div class="bubble">
+            <p id="done-title" class="bubble-title">Opgeslagen!</p>
+            <p id="done-quip" class="bubble-text"></p>
+            <p class="bubble-sign">— Captain Quality</p>
+          </div>
           <div class="confetti" id="confetti"></div>
         </div>
-        <p class="done-title center" id="done-title">Opgeslagen</p>
-        <p id="done-quip" class="muted small center"></p>
         <p id="done-sub" class="muted small center"></p>
         <ul id="done-files" class="steps"></ul>
         <p id="done-warning" class="notice" hidden></p>

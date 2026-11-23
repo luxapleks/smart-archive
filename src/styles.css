@@ -265,54 +265,83 @@ main.dialog { padding: 18px; display: flex; flex-direction: column; gap: 10px; }
 .linkbtn { background: none; border: 0; padding: 4px 0; margin-top: 4px; color: var(--accent); font: inherit; font-size: 12px; cursor: pointer; text-align: left; }
 .linkbtn:hover { text-decoration: underline; }
 
-/* ---- bevestiging: mailtje valt in de map, vinkje, confetti ---- */
+/* ---- bevestiging: Captain Quality salueert ---- */
 .center { text-align: center; }
-#state-done .done-title { margin-top: 2px; font-size: 17px; }
-#done-quip { margin: 0 0 4px; font-size: 13px; color: var(--text); }
-#done-sub { margin-bottom: 10px; overflow-wrap: anywhere; }
-.celebrate { position: relative; display: flex; justify-content: center; height: 122px; padding-top: 16px; }
-.stash { overflow: visible; }
-.folder-back { fill: #c9922e; }
-.folder-front { fill: #f2b84b; transform-origin: 60px 92px; }
-.letter rect { fill: #fff; stroke: var(--accent); stroke-width: 2; }
-.letter path { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; }
-.letter { transform: translateY(-8px); opacity: 0; }
-.okbadge { fill: var(--ok); transform-origin: 96px 78px; transform: scale(0); }
-.tick { fill: none; stroke: #fff; stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 24; stroke-dashoffset: 24; }
+#done-sub { margin: 4px 0 10px; overflow-wrap: anywhere; }
+.celebrate { position: relative; display: flex; align-items: flex-end; gap: 6px; padding-top: 8px; min-height: 150px; }
+.captain { flex: none; overflow: visible; }
+.captain .body { transform-box: view-box; transform-origin: 60px 140px; }
+.captain .shadow { fill: rgba(0, 0, 0, 0.12); transform-box: view-box; transform-origin: 60px 143px; }
+/* Armgewrichten: draaien rond schouder (42,66) en elleboog (42,82) */
+.arm-upper { transform-box: view-box; transform-origin: 42px 66px; }
+.arm-fore { transform-box: view-box; transform-origin: 42px 82px; }
+.eyes { transform-box: view-box; transform-origin: 60px 40px; }
+.medal { transform-box: view-box; transform-origin: 68px 66px; transform: scale(0); }
 
-.celebrate.go .letter { animation: drop 0.62s cubic-bezier(0.5, 0, 0.75, 0) 0.08s forwards; }
-.celebrate.go .folder-front { animation: gulp 0.36s ease-out 0.62s; }
-.celebrate.go .okbadge { animation: pop 0.38s cubic-bezier(0.3, 1.6, 0.5, 1) 0.78s forwards; }
-.celebrate.go .tick { animation: draw 0.3s ease-out 1.02s forwards; }
-.celebrate.big.go .stash { animation: wiggle 0.5s ease-in-out 1.3s 2; }
+.bubble {
+  position: relative;
+  flex: 1;
+  align-self: center;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-bottom: 40px;
+  transform-origin: 0% 70%;
+}
+.bubble::before {
+  content: "";
+  position: absolute;
+  left: -8px;
+  top: 58%;
+  border: 8px solid transparent;
+  border-right-color: var(--line);
+  border-left: 0;
+}
+.bubble::after {
+  content: "";
+  position: absolute;
+  left: -6.5px;
+  top: calc(58% + 1px);
+  border: 7px solid transparent;
+  border-right-color: var(--bg-soft);
+  border-left: 0;
+}
+.bubble-title { font-weight: 700; font-size: 15px; margin: 0 0 2px; }
+.bubble-text { font-size: 13px; margin: 0; }
+.bubble-sign { font-size: 11px; color: var(--muted); margin: 6px 0 0; font-style: italic; }
 
-@keyframes drop {
-  0% { transform: translateY(-14px) rotate(-6deg); opacity: 0; }
-  20% { opacity: 1; }
-  70% { transform: translateY(26px) rotate(3deg); opacity: 1; }
-  100% { transform: translateY(40px) rotate(0); opacity: 0; }
-}
-@keyframes gulp {
-  0% { transform: scaleY(1); }
-  40% { transform: scaleY(0.9) scaleX(1.03); }
-  100% { transform: scaleY(1); }
-}
-@keyframes pop { to { transform: scale(1); } }
-@keyframes draw { to { stroke-dashoffset: 0; } }
-@keyframes wiggle {
-  0%, 100% { transform: rotate(0); }
-  25% { transform: rotate(-4deg); }
-  75% { transform: rotate(4deg); }
-}
+/* Tijdlijn */
+.celebrate.go .body { animation: hop 0.45s cubic-bezier(0.3, 1.4, 0.5, 1) both; }
+.celebrate.go .shadow { animation: shadow 0.45s ease-out both; }
+.celebrate.go .arm-upper { animation: salute-upper 0.42s cubic-bezier(0.4, 1.5, 0.5, 1) 0.45s both; }
+.celebrate.go .arm-fore { animation: salute-fore 0.42s cubic-bezier(0.4, 1.5, 0.5, 1) 0.45s both; }
+.celebrate.go .eyes { animation: blink 0.18s ease-in-out 1.5s; }
+.celebrate.go .bubble { animation: bubble 0.35s cubic-bezier(0.3, 1.5, 0.5, 1) 0.65s both; }
+.celebrate.big.go .medal { animation: medal 0.45s cubic-bezier(0.3, 1.8, 0.5, 1) 1.05s both; }
+.celebrate.big.go .body { animation: hop 0.45s cubic-bezier(0.3, 1.4, 0.5, 1) both, proud 0.6s ease-in-out 1.4s 2; }
 
-.confetti { position: absolute; left: 50%; top: 50%; width: 0; height: 0; pointer-events: none; }
+@keyframes hop {
+  0% { transform: translateY(26px) scaleY(0.85); opacity: 0; }
+  60% { transform: translateY(-5px) scaleY(1.04); opacity: 1; }
+  100% { transform: translateY(0) scaleY(1); opacity: 1; }
+}
+@keyframes shadow { from { transform: scale(0.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes salute-upper { from { transform: rotate(0); } to { transform: rotate(145deg); } }
+@keyframes salute-fore { from { transform: rotate(0); } to { transform: rotate(72deg); } }
+@keyframes blink { 50% { transform: scaleY(0.1); } }
+@keyframes bubble { from { transform: scale(0.3); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes medal { from { transform: scale(0) rotate(-40deg); } to { transform: scale(1) rotate(0); } }
+@keyframes proud { 50% { transform: translateY(-4px); } }
+
+.confetti { position: absolute; left: 56px; top: 40%; width: 0; height: 0; pointer-events: none; }
 .confetti i {
   position: absolute;
   width: 6px;
   height: 9px;
   border-radius: 1px;
   opacity: 0;
-  animation: burst 0.9s cubic-bezier(0.15, 0.7, 0.4, 1) var(--delay) forwards;
+  animation: burst 1s cubic-bezier(0.15, 0.7, 0.4, 1) var(--delay) forwards;
 }
 @keyframes burst {
   0% { transform: translate(0, 0) rotate(0) scale(0.6); opacity: 1; }
@@ -321,8 +350,8 @@ main.dialog { padding: 18px; display: flex; flex-direction: column; gap: 10px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .letter { display: none; }
-  .okbadge { transform: scale(1); }
-  .tick { stroke-dashoffset: 0; }
   .celebrate.go * { animation: none !important; }
+  .arm-upper { transform: rotate(145deg); }
+  .arm-fore { transform: rotate(72deg); }
+  .celebrate.big .medal { transform: scale(1); }
 }

@@ -423,15 +423,17 @@ async function finish(res: SaveResult) {
 /* ------------------------------------------------------- een klein feestje */
 
 const QUIPS = [
-  "Weer eentje netjes opgeborgen.",
-  "Inbox −1, orde +1.",
-  "Je toekomstige zelf zegt: dank je.",
-  "Strak dossier, rustig hoofd.",
-  "Opgeborgen. Nooit meer zoeken.",
-  "Die zit. Volgende!",
-  "Archivaris van het jaar-materiaal.",
-  "Klik, klak, opgeborgen.",
-];
+  "Keurig gearchiveerd. Zo zie ik het graag!",
+  "Dossier op orde. Ingerukt, mars!",
+  "Inbox −1. Missie geslaagd.",
+  "Weer een mail in het gelid.",
+  "Orde en discipline. Uitstekend!",
+  "Rapport: bestand veilig opgeborgen.",
+  "Daar kan de auditor niks op aanmerken.",
+  "Netjes. Uw toekomstige zelf salueert mee.",
+  "Geen mail blijft achter!",
+  "Volgende mail. Voorwaarts!",
+]
 
 function celebrate() {
   // Teller (reist mee met je mailbox)
@@ -441,10 +443,10 @@ function celebrate() {
   rs.saveAsync(() => undefined);
 
   const milestone = count % 100 === 0 || count === 10 || count === 25 || count === 50;
-  $("done-title").textContent = milestone ? `Mail nummer ${count}!` : "Opgeslagen";
+  $("done-title").textContent = milestone ? `Medaille! Mail nr. ${count}` : `Opgeslagen! (#${count})`;
   $("done-quip").textContent = milestone
-    ? "Mijlpaal bereikt. Trakteer jezelf op een koffie. ☕"
-    : `${QUIPS[Math.floor(Math.random() * QUIPS.length)]} (#${count})`;
+    ? "Voor buitengewone archiefdiscipline. Haal maar een koffie, dat heb je verdiend. ☕"
+    : QUIPS[Math.floor(Math.random() * QUIPS.length)];
 
   // Animatie opnieuw starten
   const box = $("celebrate");
@@ -458,7 +460,8 @@ function celebrate() {
   conf.innerHTML = "";
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   const colors = ["#0054a6", "#2bb673", "#f4b400", "#e8467c", "#7c4dff", "#00a2c7"];
-  const n = milestone ? 46 : 16;
+  if (!milestone) return; // gewone keer: alleen saluut, confetti bewaren voor mijlpalen
+  const n = 46;
   for (let i = 0; i < n; i++) {
     const p = document.createElement("i");
     const angle = (Math.PI * 2 * i) / n + Math.random() * 0.4;
@@ -466,7 +469,7 @@ function celebrate() {
     p.style.setProperty("--dx", `${Math.cos(angle) * dist}px`);
     p.style.setProperty("--dy", `${Math.sin(angle) * dist - 20}px`);
     p.style.setProperty("--rot", `${Math.random() * 720 - 360}deg`);
-    p.style.setProperty("--delay", `${0.75 + Math.random() * 0.12}s`);
+    p.style.setProperty("--delay", `${1.05 + Math.random() * 0.12}s`);
     p.style.background = colors[i % colors.length];
     if (i % 3 === 0) p.style.borderRadius = "50%";
     conf.appendChild(p);
