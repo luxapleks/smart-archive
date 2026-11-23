@@ -83,6 +83,7 @@ function show(state: State, errorText?: string) {
   if (state !== "settings") lastState = state;
   current = state;
   for (const [k, el] of Object.entries(sections)) el.hidden = k !== state;
+  if (state === "done" || state === "settings") window.scrollTo(0, 0);
   if (errorText !== undefined) $("error-text").textContent = errorText;
   $("bar-title").textContent = state === "settings" ? "Instellingen" : "Archiveren";
   $("toggle-settings").setAttribute("aria-pressed", String(state === "settings"));
@@ -416,6 +417,60 @@ async function finish(res: SaveResult) {
   w.textContent = warnings.join(" ");
   setBusy(null);
   show("done");
+  celebrate();
+}
+
+/* ------------------------------------------------------- een klein feestje */
+
+const QUIPS = [
+  "Weer eentje netjes opgeborgen.",
+  "Inbox −1, orde +1.",
+  "Je toekomstige zelf zegt: dank je.",
+  "Strak dossier, rustig hoofd.",
+  "Opgeborgen. Nooit meer zoeken.",
+  "Die zit. Volgende!",
+  "Archivaris van het jaar-materiaal.",
+  "Klik, klak, opgeborgen.",
+];
+
+function celebrate() {
+  // Teller (reist mee met je mailbox)
+  const rs = Office.context.roamingSettings;
+  const count = ((rs.get("archivedCount") as number) ?? 0) + 1;
+  rs.set("archivedCount", count);
+  rs.saveAsync(() => undefined);
+
+  const milestone = count % 100 === 0 || count === 10 || count === 25 || count === 50;
+  $("done-title").textContent = milestone ? `Mail nummer ${count}!` : "Opgeslagen";
+  $("done-quip").textContent = milestone
+    ? "Mijlpaal bereikt. Trakteer jezelf op een koffie. ☕"
+    : `${QUIPS[Math.floor(Math.random() * QUIPS.length)]} (#${count})`;
+
+  // Animatie opnieuw starten
+  const box = $("celebrate");
+  box.classList.remove("go", "big");
+  void box.offsetWidth; // reflow, zodat de animatie opnieuw speelt
+  box.classList.add("go");
+  if (milestone) box.classList.add("big");
+
+  // Confetti: een handvol snippers, bij een mijlpaal wat meer
+  const conf = $("confetti");
+  conf.innerHTML = "";
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const colors = ["#0054a6", "#2bb673", "#f4b400", "#e8467c", "#7c4dff", "#00a2c7"];
+  const n = milestone ? 46 : 16;
+  for (let i = 0; i < n; i++) {
+    const p = document.createElement("i");
+    const angle = (Math.PI * 2 * i) / n + Math.random() * 0.4;
+    const dist = (milestone ? 70 : 45) + Math.random() * (milestone ? 70 : 35);
+    p.style.setProperty("--dx", `${Math.cos(angle) * dist}px`);
+    p.style.setProperty("--dy", `${Math.sin(angle) * dist - 20}px`);
+    p.style.setProperty("--rot", `${Math.random() * 720 - 360}deg`);
+    p.style.setProperty("--delay", `${0.75 + Math.random() * 0.12}s`);
+    p.style.background = colors[i % colors.length];
+    if (i % 3 === 0) p.style.borderRadius = "50%";
+    conf.appendChild(p);
+  }
 }
 
 /** Hoofdknop: opslaan in de gekozen klantmap/favoriet, of (zonder archiefmap) via Verkenner. */

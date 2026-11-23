@@ -69,13 +69,26 @@
 
       <!-- ===================== klaar ===================== -->
       <section id="state-done" hidden>
-        <div class="done-head">
-          <div class="done-icon" aria-hidden="true">✓</div>
-          <div>
-            <p class="done-title">Opgeslagen</p>
-            <p id="done-sub" class="muted small"></p>
-          </div>
+        <div class="celebrate" id="celebrate" aria-hidden="true">
+          <svg class="stash" viewBox="0 0 120 100" width="132" height="110">
+            <!-- achterkant van de map -->
+            <path class="folder-back" d="M14 30 h30 l8 8 h54 a4 4 0 0 1 4 4 v46 a4 4 0 0 1 -4 4 H14 a4 4 0 0 1 -4 -4 V34 a4 4 0 0 1 4 -4z" />
+            <!-- het mailtje dat erin valt -->
+            <g class="letter">
+              <rect x="38" y="8" width="44" height="32" rx="3" />
+              <path d="M38 11 l22 16 l22 -16" />
+            </g>
+            <!-- voorkant van de map -->
+            <path class="folder-front" d="M10 48 a4 4 0 0 1 4 -4 h92 a4 4 0 0 1 4 4 v40 a4 4 0 0 1 -4 4 H14 a4 4 0 0 1 -4 -4z" />
+            <!-- vinkje -->
+            <circle class="okbadge" cx="96" cy="78" r="15" />
+            <path class="tick" d="M89 78 l5 5 l9 -10" />
+          </svg>
+          <div class="confetti" id="confetti"></div>
         </div>
+        <p class="done-title center" id="done-title">Opgeslagen</p>
+        <p id="done-quip" class="muted small center"></p>
+        <p id="done-sub" class="muted small center"></p>
         <ul id="done-files" class="steps"></ul>
         <p id="done-warning" class="notice" hidden></p>
         <button id="back" class="btn secondary" type="button">Terug</button>
