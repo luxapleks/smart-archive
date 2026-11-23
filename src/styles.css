@@ -41,7 +41,7 @@ legend {
   gap: 6px;
 }
 label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
-input[type="text"], input[type="date"], input[type="search"], select {
+input[type="text"], input[type="date"], input[type="time"], input[type="search"], select {
   display: block;
   width: 100%;
   margin-top: 2px;
@@ -355,3 +355,15 @@ main.dialog { padding: 18px; display: flex; flex-direction: column; gap: 10px; }
   .arm-fore { transform: rotate(72deg); }
   .celebrate.big .medal { transform: scale(1); }
 }
+
+/* ---- welkom / herinnering ---- */
+.welcome-head { display: flex; gap: 8px; align-items: flex-start; margin: 4px 0 10px; }
+.welcome-captain { flex: none; width: 70px; }
+.welcome-captain svg { width: 70px; height: 88px; }
+.posed .arm-upper { transform: rotate(145deg); }
+.posed .arm-fore { transform: rotate(72deg); }
+.posed .medal { transform: scale(0); }
+#rem-options .check { align-items: flex-start; margin-bottom: 6px; }
+#rem-options .check span { display: block; }
+#rem-options .check small { color: var(--muted); }
+#rem-after .steps { margin-top: 4px; }

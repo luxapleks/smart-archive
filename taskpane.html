@@ -138,8 +138,44 @@
         <button id="back" class="btn secondary" type="button">Terug</button>
       </section>
 
+      <!-- ===================== welkom / herinnering ===================== -->
+      <section id="state-welcome" hidden>
+        <div class="welcome-head">
+          <div id="welcome-captain" class="welcome-captain" aria-hidden="true"></div>
+          <div>
+            <p class="bubble-title" id="welcome-title">Welkom bij Smart archive!</p>
+            <p class="small" id="welcome-intro">Zal ik je af en toe herinneren om je mail te archiveren? Ik zet dan een terugkerende herinnering in je agenda (15 minuten, als 'vrij' zodat niemand er last van heeft).</p>
+          </div>
+        </div>
+        <div id="rem-form">
+          <div id="rem-options" class="radios" role="radiogroup" aria-label="Hoe vaak?"></div>
+          <label id="rem-time-label">Tijdstip
+            <input id="rem-time" type="time" step="300" />
+          </label>
+          <div class="save-actions">
+            <button id="rem-ok" class="btn primary" type="button">Herinnering toevoegen</button>
+            <button id="rem-skip" class="btn secondary" type="button">Nee, bedankt</button>
+          </div>
+        </div>
+        <div id="rem-after" hidden>
+          <ol class="steps">
+            <li>Open het gedownloade bestand <b>Archiefherinnering.ics</b>.</li>
+            <li>Klik in de afspraak op <b>Opslaan en sluiten</b>. Klaar: de herinnering staat in je agenda.</li>
+          </ol>
+          <p class="muted small">Lukt dat niet? <button id="rem-manual" class="linkbtn" type="button">Maak de afspraak hier</button>; zet dan zelf <i>Terugkeerpatroon</i> aan.</p>
+          <button id="rem-done" class="btn primary" type="button">Verder naar archiveren</button>
+        </div>
+      </section>
+
       <!-- ===================== instellingen ===================== -->
       <form id="state-settings" hidden autocomplete="off">
+        <fieldset>
+          <legend>Herinnering</legend>
+          <div class="row">
+            <button id="s-reminder" class="btn secondary" type="button">Herinnering in agenda instellen…</button>
+          </div>
+        </fieldset>
+
         <fieldset>
           <legend>Archiefmap</legend>
           <p id="s-root" class="preview"></p>

@@ -20,6 +20,7 @@ Sla een mail op als bestand met een naam die wél iets zegt, in de goede map:
 3. **Eén bestand** met bijlagen: `.msg` (standaard) of `.eml`. Bestaat de naam al, dan volgt `… (2).msg`.
    - **Bijlagen** worden daarnaast los opgeslagen in dezelfde map: `261120 Bijlage 1 Concept SPA.pdf`, `261120 Bijlage 2 …`. Logo's uit handtekeningen worden overgeslagen; een bijgevoegde mail krijgt het onderwerp als naam (`.eml`). Uit te zetten in ⚙.
 4. De mail krijgt de categorie **Gearchiveerd** (maak die categorie eenmalig aan in Outlook).
+5. **Herinnering**: de eerste keer vraagt Captain Quality of je af en toe herinnerd wilt worden (elke vrijdagmiddag, elke werkdag, maandagochtend, om de week of maandelijks). De add-in maakt dan een terugkerende afspraak (15 min, als 'vrij') die je met één klik in je agenda zet. Later aan te passen via ⚙ → *Herinnering in agenda instellen…*.
 
 ## Installatie (zonder IT)
 

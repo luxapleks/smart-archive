@@ -22,16 +22,18 @@ import {
   type SaveResult,
 } from "./fsaccess";
 import { getSettings, setSettings, type DateFormat, type Format, type Settings } from "./store";
+import { buildReminderIcs, firstOccurrence, PRESETS, REMINDER_SUBJECT, type ReminderKind } from "./shared/ics";
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
-type State = "loading" | "error" | "form" | "done" | "settings";
+type State = "loading" | "error" | "form" | "done" | "settings" | "welcome";
 const sections: Record<State, HTMLElement> = {
   loading: $("state-loading"),
   error: $("state-error"),
   form: $("state-form"),
   done: $("state-done"),
   settings: $("state-settings"),
+  welcome: $("state-welcome"),
 };
 
 const f = {
@@ -80,12 +82,12 @@ let favorites: Favorite[] = [];
 /* ------------------------------------------------------------ helpers */
 
 function show(state: State, errorText?: string) {
-  if (state !== "settings") lastState = state;
+  if (state !== "settings" && state !== "welcome") lastState = state;
   current = state;
   for (const [k, el] of Object.entries(sections)) el.hidden = k !== state;
-  if (state === "done" || state === "settings") window.scrollTo(0, 0);
+  if (state === "done" || state === "settings" || state === "welcome") window.scrollTo(0, 0);
   if (errorText !== undefined) $("error-text").textContent = errorText;
-  $("bar-title").textContent = state === "settings" ? "Instellingen" : "Archiveren";
+  $("bar-title").textContent = state === "settings" ? "Instellingen" : state === "welcome" ? "Herinnering" : "Archiveren";
   $("toggle-settings").setAttribute("aria-pressed", String(state === "settings"));
 }
 
@@ -665,6 +667,96 @@ async function saveSettings(ev: SubmitEvent) {
   await load();
 }
 
+/* ---------------------------------------------- welkom / herinnering */
+
+let welcomeFromSettings = false;
+
+function openWelcome(fromSettings: boolean) {
+  welcomeFromSettings = fromSettings;
+  $("welcome-title").textContent = fromSettings ? "Herinnering instellen" : "Welkom bij Smart archive!";
+  // Captain Quality, salueert al (zonder animatie)
+  const holder = $("welcome-captain");
+  if (!holder.firstChild) {
+    const svg = document.querySelector(".captain")!.cloneNode(true) as SVGElement;
+    svg.classList.add("posed");
+    holder.appendChild(svg);
+  }
+  const opts = $("rem-options");
+  opts.innerHTML =
+    PRESETS.map(
+      (p, i) => `<label class="check"><input type="radio" name="rem" value="${p.kind}" ${i === 0 ? "checked" : ""} />
+        <span>${escapeHtml(p.label)}${i === 0 ? " (aanbevolen)" : ""}<br><small>${escapeHtml(p.hint)} · ${p.time}</small></span></label>`,
+    ).join("") + `<label class="check"><input type="radio" name="rem" value="none" /><span>Nee, liever niet</span></label>`;
+  const time = $<HTMLInputElement>("rem-time");
+  time.value = PRESETS[0].time;
+  opts.querySelectorAll<HTMLInputElement>("input[name=rem]").forEach((r) =>
+    r.addEventListener("change", () => {
+      const p = PRESETS.find((x) => x.kind === r.value);
+      if (p) time.value = p.time;
+      $("rem-time-label").hidden = r.value === "none";
+      $("rem-ok").textContent = r.value === "none" ? "Opslaan" : "Herinnering toevoegen";
+    }),
+  );
+  $("rem-time-label").hidden = false;
+  $("rem-ok").textContent = "Herinnering toevoegen";
+  $("rem-skip").textContent = fromSettings ? "Annuleren" : "Nee, bedankt";
+  $("rem-form").hidden = false;
+  $("rem-after").hidden = true;
+  show("welcome");
+}
+
+async function markOnboarded() {
+  const rs = Office.context.roamingSettings;
+  if (rs.get("onboarded")) return;
+  rs.set("onboarded", true);
+  await new Promise<void>((r) => rs.saveAsync(() => r()));
+}
+
+function reminderChoice(): { kind: ReminderKind | "none"; time: string } {
+  const kind = (document.querySelector<HTMLInputElement>("input[name=rem]:checked")?.value ?? "none") as ReminderKind | "none";
+  return { kind, time: $<HTMLInputElement>("rem-time").value || "15:30" };
+}
+
+async function addReminder() {
+  const { kind, time } = reminderChoice();
+  await markOnboarded();
+  if (kind === "none") return leaveWelcome();
+  const ics = buildReminderIcs(kind, time);
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([ics], { type: "text/calendar;charset=utf-8" }));
+  a.download = "Archiefherinnering.ics";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  const rs = Office.context.roamingSettings;
+  rs.set("reminder", { kind, time });
+  rs.saveAsync(() => undefined);
+  $("rem-form").hidden = true;
+  $("rem-after").hidden = false;
+}
+
+/** Terugval: nieuw afspraakformulier openen (terugkeerpatroon zet de gebruiker zelf). */
+function manualReminder() {
+  const { kind, time } = reminderChoice();
+  if (kind === "none") return;
+  const start = firstOccurrence(kind, time, new Date());
+  Office.context.mailbox.displayNewAppointmentForm({
+    subject: REMINDER_SUBJECT,
+    start,
+    end: new Date(start.getTime() + 15 * 60_000),
+    body: "Tijd om je mail op te ruimen! Open een mail in Outlook en klik op 'Slim archiveren'.",
+    requiredAttendees: [],
+    optionalAttendees: [],
+    location: "",
+    resources: [],
+  } as any);
+}
+
+function leaveWelcome() {
+  if (welcomeFromSettings) openSettings();
+  else void load();
+}
+
 /* --------------------------------------------------------------- start */
 
 Office.onReady(() => {
@@ -694,6 +786,20 @@ Office.onReady(() => {
     if (await chooseRoot()) s.root.textContent = root!.name;
   });
 
-  Office.context.mailbox.addHandlerAsync(Office.EventType.ItemChanged, () => void load());
-  void load();
+  // herinnering
+  $("rem-ok").addEventListener("click", () => void addReminder());
+  $("rem-skip").addEventListener("click", async () => {
+    await markOnboarded();
+    leaveWelcome();
+  });
+  $("rem-manual").addEventListener("click", manualReminder);
+  $("rem-done").addEventListener("click", leaveWelcome);
+  $("s-reminder").addEventListener("click", () => openWelcome(true));
+
+  Office.context.mailbox.addHandlerAsync(Office.EventType.ItemChanged, () => {
+    if (current !== "welcome") void load();
+  });
+  // Eerste keer: eerst vragen of je herinnerd wilt worden
+  if (!Office.context.roamingSettings.get("onboarded")) openWelcome(false);
+  else void load();
 });
