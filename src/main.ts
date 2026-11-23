@@ -459,7 +459,7 @@ function celebrate() {
   const conf = $("confetti");
   conf.innerHTML = "";
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-  const colors = ["#0054a6", "#2bb673", "#f4b400", "#e8467c", "#7c4dff", "#00a2c7"];
+  const colors = ["#00b7b3", "#d1ec51", "#2b303a", "#62d4d0", "#36678e"]; // Baker Tilly-palet
   if (!milestone) return; // gewone keer: alleen saluut, confetti bewaren voor mijlpalen
   const n = 46;
   for (let i = 0; i < n; i++) {

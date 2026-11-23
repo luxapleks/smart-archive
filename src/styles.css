@@ -283,7 +283,7 @@ main.dialog { padding: 18px; display: flex; flex-direction: column; gap: 10px; }
   flex: 1;
   align-self: center;
   background: var(--bg-soft);
-  border: 1px solid var(--line);
+  border: 1px solid #00b7b3;
   border-radius: 12px;
   padding: 10px 12px;
   margin-bottom: 40px;
@@ -295,7 +295,7 @@ main.dialog { padding: 18px; display: flex; flex-direction: column; gap: 10px; }
   left: -8px;
   top: 58%;
   border: 8px solid transparent;
-  border-right-color: var(--line);
+  border-right-color: #00b7b3;
   border-left: 0;
 }
 .bubble::after {
@@ -307,7 +307,7 @@ main.dialog { padding: 18px; display: flex; flex-direction: column; gap: 10px; }
   border-right-color: var(--bg-soft);
   border-left: 0;
 }
-.bubble-title { font-weight: 700; font-size: 15px; margin: 0 0 2px; }
+.bubble-title { font-weight: 700; font-size: 15px; margin: 0 0 2px; color: #00918e; }
 .bubble-text { font-size: 13px; margin: 0; }
 .bubble-sign { font-size: 11px; color: var(--muted); margin: 6px 0 0; font-style: italic; }
 
