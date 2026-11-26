@@ -17,6 +17,7 @@ import {
   saveToDirectory,
   setFavorites,
   setRoot,
+  requestAccess,
   type Favorite,
   type FolderEntry,
   type SaveResult,
@@ -209,14 +210,29 @@ function renderRootState() {
 }
 
 /** Klantmappen inlezen (vereist toestemming; vraagt die zo nodig met één melding). */
+/** Mappen waarvoor deze sessie al toestemming is gegeven: niet opnieuw vragen. */
+const granted = new WeakSet<FileSystemDirectoryHandle>();
+
 async function openRoot(ask: boolean): Promise<boolean> {
   if (!root) return false;
+  if (granted.has(root) && folders) return true;
   const perm = step(`toestemming archiefmap controleren`);
-  const has = await hasPermission(root as any);
+  const has = granted.has(root) || (await hasPermission(root as any));
   perm(has ? "toestemming aanwezig" : "nog geen toestemming (of geen antwoord binnen 1,5 s)");
   if (!has) {
-    if (!ask || !(await ensurePermission(root as any))) return false;
+    if (!ask) return false;
+    const done = step("toestemming vragen");
+    const h = await requestAccess(root as any, 1500, (m) => logLine(`  ${m}`));
+    done(h ? `ok: '${h.name}'` : "geweigerd of geannuleerd");
+    if (!h) return false;
+    if (h !== root) {
+      // Vers gekozen via Verkenner: deze map als archiefmap bewaren
+      root = h;
+      folders = null;
+      await setRoot(h);
+    }
   }
+  granted.add(root);
   if (!folders) {
     f.unlock.textContent = "Mappen inlezen…";
     const done = step(`klantmappen inlezen in '${root.name}' (diepte ${settings.folderDepth})`);
@@ -551,11 +567,17 @@ async function onSave(ev?: Event) {
   try {
     // Losse favoriet buiten de archiefmap: eigen toestemming
     if (opt.fav?.handle) {
-      if (!(await ensurePermission(opt.fav.handle as any))) {
+      const h = granted.has(opt.fav.handle) ? opt.fav.handle : await requestAccess(opt.fav.handle as any, 1500, (m) => logLine(`  ${m}`));
+      if (!h) {
         showWarning("Geen toestemming voor die map.");
         return;
       }
-      await saveInto(opt.fav.handle, undefined, opt.fav.id);
+      if (h !== opt.fav.handle) {
+        opt.fav.handle = h;
+        await setFavorites(favorites);
+      }
+      granted.add(h);
+      await saveInto(h, undefined, opt.fav.id);
       return;
     }
     if (!(await openRoot(true))) {
@@ -606,6 +628,7 @@ async function chooseRoot(): Promise<boolean> {
     await setRoot(h);
     root = h;
     folders = null;
+    granted.add(h);
     await openRoot(true);
     await buildFolderOptions();
     renderRootState();

@@ -216,6 +216,34 @@ export async function setRoot(h: FileSystemDirectoryHandle): Promise<void> {
 }
 
 /**
+ * Toegang krijgen tot een eerder gekozen map, betrouwbaar in classic Outlook:
+ * 1. requestPermission (toont normaal de toestemmingsvraag);
+ * 2. komt daar binnen `timeoutMs` geen antwoord op (classic Outlook na een herstart),
+ *    dan het Verkenner-venster openen in diezelfde map. De gebruiker klikt
+ *    'Map selecteren' en geeft akkoord; dat levert een verse map met toestemming.
+ * Geeft de (eventueel nieuwe) map terug, of null bij weigeren/annuleren.
+ */
+export async function requestAccess(h: DirHandle, timeoutMs = 1500, onStep?: (m: string) => void): Promise<FileSystemDirectoryHandle | null> {
+  if (h.requestPermission) {
+    const r = await Promise.race([
+      h.requestPermission({ mode: "readwrite" }).catch(() => "error" as const),
+      new Promise<"timeout">((res) => setTimeout(() => res("timeout"), timeoutMs)),
+    ]);
+    onStep?.(`toestemming vragen: ${r}`);
+    if (r === "granted") return h;
+    if (r === "denied") return null;
+  }
+  onStep?.("Verkenner-venster openen in de archiefmap");
+  try {
+    return await pickDirectory(h);
+  } catch (e: any) {
+    onStep?.(`Verkenner-venster: ${e?.name ?? e}`);
+    if (e?.name === "AbortError") return null;
+    throw e;
+  }
+}
+
+/**
  * Is er al toestemming? In classic Outlook (WebView2) geeft queryPermission na een
  * herstart soms nooit antwoord. Na `timeoutMs` gaan we uit van "nog geen toestemming";
  * de gebruiker klikt dan op 'Klantmappen openen'.
