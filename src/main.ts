@@ -350,6 +350,12 @@ function onSearch() {
 async function load() {
   const seq = ++loadSeq;
   if (current !== "settings") show("loading");
+  // Vangnet: nooit eindeloos op "Mail lezen…" blijven staan
+  setTimeout(() => {
+    if (seq === loadSeq && current === "loading") {
+      show("error", "Het lezen van de mail duurt te lang. Klik op 'Opnieuw proberen' of selecteer de mail opnieuw.");
+    }
+  }, 15000);
   try {
     settings = getSettings();
     const m = await readCurrentMail();
@@ -370,20 +376,41 @@ async function load() {
     updatePreview();
     updateHint();
 
-    root ??= (await getRoot()) ?? null;
-    favorites = await getFavorites();
-    if (seq !== loadSeq) return;
     options = [];
     f.suggestions.innerHTML = "";
-    // Al toestemming (eerder deze sessie)? Dan direct de mappen tonen, zonder melding
-    if (root && folders === null) await openRoot(false).catch(() => false);
-    if (seq !== loadSeq) return;
-    await buildFolderOptions();
     renderRootState();
-
     if (current !== "settings") show("form");
+    // Archiefmap, favorieten en klantmappen op de achtergrond: het paneel is al bruikbaar
+    void initFolders(seq);
   } catch (e: any) {
     if (seq === loadSeq) show("error", e?.message ?? String(e));
+  }
+}
+
+function withTimeout<T>(p: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([p, new Promise<T>((r) => setTimeout(() => r(fallback), ms))]);
+}
+
+async function initFolders(seq: number) {
+  try {
+    root ??= (await withTimeout(getRoot(), 5000, undefined)) ?? null;
+    favorites = await withTimeout(getFavorites(), 5000, favorites);
+    if (seq !== loadSeq) return;
+    renderRootState();
+    // Al toestemming (eerder deze sessie)? Dan direct de mappen inlezen, zonder melding
+    if (root && folders === null && (await withTimeout(hasPermission(root as any), 3000, false))) {
+      f.unlock.disabled = true;
+      f.unlock.textContent = "Klantmappen inlezen…";
+      await withTimeout(openRoot(false), 20000, false);
+    }
+    if (seq !== loadSeq) return;
+    await withTimeout(buildFolderOptions(), 5000, undefined);
+    renderRootState();
+  } catch (e: any) {
+    if (seq === loadSeq) {
+      renderRootState();
+      showWarning(`Mappen konden niet worden geladen: ${e?.message ?? e}`);
+    }
   }
 }
 

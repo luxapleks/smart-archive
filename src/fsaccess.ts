@@ -153,22 +153,46 @@ export async function saveToDirectory(
 const DB = "smart-archive";
 const STORE = "handles";
 
+let dbPromise: Promise<IDBDatabase> | null = null;
+
 function db(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
+  dbPromise ??= new Promise<IDBDatabase>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("Lokale opslag reageert niet")), 4000);
     const req = indexedDB.open(DB, 1);
     req.onupgradeneeded = () => req.result.createObjectStore(STORE);
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
+    req.onsuccess = () => {
+      clearTimeout(timer);
+      resolve(req.result);
+    };
+    req.onerror = () => {
+      clearTimeout(timer);
+      reject(req.error);
+    };
+    req.onblocked = () => {
+      clearTimeout(timer);
+      reject(new Error("Lokale opslag geblokkeerd"));
+    };
+  }).catch((e) => {
+    dbPromise = null; // volgende keer opnieuw proberen
+    throw e;
   });
+  return dbPromise;
 }
 
 async function idb<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest<T>): Promise<T | undefined> {
   try {
     const d = await db();
     return await new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("timeout")), 4000);
       const r = fn(d.transaction(STORE, mode).objectStore(STORE));
-      r.onsuccess = () => resolve(r.result);
-      r.onerror = () => reject(r.error);
+      r.onsuccess = () => {
+        clearTimeout(timer);
+        resolve(r.result);
+      };
+      r.onerror = () => {
+        clearTimeout(timer);
+        reject(r.error);
+      };
     });
   } catch {
     return undefined; // opslag niet beschikbaar: gewoon niet onthouden
