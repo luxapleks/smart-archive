@@ -54,49 +54,6 @@ async function exists(dir: FileSystemDirectoryHandle, name: string): Promise<boo
 }
 
 /** Unieke basisnaam: "naam", "naam (2)", "naam (3)", … */
-/* ---------------------------------------------- veilig mappen doorlopen */
-
-/** Diagnose: korte log van wat er gebeurde (zichtbaar in instellingen). */
-export const diag: string[] = [];
-export function log(msg: string) {
-  diag.push(`${new Date().toLocaleTimeString("nl-NL")} ${msg}`);
-  if (diag.length > 60) diag.shift();
-}
-
-const STEP_TIMEOUT = Symbol("timeout");
-
-/**
- * Doorloopt de inhoud van een map zonder te blijven hangen of af te breken:
- * - een element dat niet gelezen kan worden (bv. een OneDrive-snelkoppeling naar
- *   een gedeelde bibliotheek, of een map die net verplaatst is) stopt alleen deze map;
- * - als één stap langer dan `stepMs` duurt (OneDrive die iets moet ophalen),
- *   wordt deze map overgeslagen met wat er tot dan toe gevonden is.
- */
-export async function* safeEntries(dir: FileSystemDirectoryHandle, stepMs = 3000): AsyncGenerator<FileSystemHandle> {
-  let it: AsyncIterator<FileSystemHandle>;
-  try {
-    it = (dir as any).values()[Symbol.asyncIterator]();
-  } catch (e: any) {
-    log(`kan '${dir.name}' niet openen: ${e?.name ?? e}`);
-    return;
-  }
-  while (true) {
-    let r: IteratorResult<FileSystemHandle> | typeof STEP_TIMEOUT;
-    try {
-      r = await Promise.race([it.next(), new Promise<typeof STEP_TIMEOUT>((res) => setTimeout(() => res(STEP_TIMEOUT), stepMs))]);
-    } catch (e: any) {
-      log(`lezen van '${dir.name}' gestopt: ${e?.name ?? e}`);
-      return;
-    }
-    if (r === STEP_TIMEOUT) {
-      log(`'${dir.name}' reageert traag, overgeslagen`);
-      return;
-    }
-    if (r.done) return;
-    yield r.value;
-  }
-}
-
 /** Unieke bestandsnaam: "naam.pdf", "naam (2).pdf", … */
 export async function uniqueName(dir: FileSystemDirectoryHandle, base: string, ext: string): Promise<string> {
   for (let i = 1; i < 100; i++) {
@@ -135,7 +92,7 @@ export async function findSubfolder(
     const next: typeof level = [];
     const hits: typeof level = [];
     for (const { handle, path } of level) {
-      for await (const child of safeEntries(handle)) {
+      for await (const child of (handle as any).values() as AsyncIterable<FileSystemHandle>) {
         if (child.kind !== "directory") continue;
         const entry = { handle: child as FileSystemDirectoryHandle, path: [...path, child.name] };
         if (matchesSubfolder(child.name, subfolder)) hits.push(entry);
@@ -237,8 +194,7 @@ async function idb<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRe
         reject(r.error);
       };
     });
-  } catch (e: any) {
-    log(`lokale opslag: ${e?.message ?? e}`);
+  } catch {
     return undefined; // opslag niet beschikbaar: gewoon niet onthouden
   }
 }
@@ -275,21 +231,6 @@ export async function getRoot(): Promise<DirHandle | undefined> {
   return idb<DirHandle>("readonly", (s) => s.get("root"));
 }
 
-export async function clearRoot(): Promise<void> {
-  await idb("readwrite", (s) => s.delete("root"));
-}
-
-/** Bestaat de map nog (of is hij verplaatst/verwijderd/niet meer gesynchroniseerd)? */
-export async function stillExists(h: FileSystemDirectoryHandle): Promise<boolean> {
-  try {
-    const it = (h as any).values()[Symbol.asyncIterator]();
-    await Promise.race([it.next(), new Promise((r) => setTimeout(r, 3000))]);
-    return true;
-  } catch (e: any) {
-    return e?.name !== "NotFoundError";
-  }
-}
-
 export async function setRoot(h: FileSystemDirectoryHandle): Promise<void> {
   await idb("readwrite", (s) => s.put(h, "root"));
 }
@@ -304,18 +245,13 @@ export interface FolderEntry {
 }
 
 /** Klantmappen onder de root, tot `depth` niveaus. */
-export async function listFolders(root: FileSystemDirectoryHandle, depth = 1, cap = 5000, budgetMs = 15000): Promise<FolderEntry[]> {
-  const t0 = Date.now();
+export async function listFolders(root: FileSystemDirectoryHandle, depth = 1, cap = 5000): Promise<FolderEntry[]> {
   const out: FolderEntry[] = [];
   let level: FolderEntry[] = [{ path: "", handle: root }];
   for (let d = 0; d < depth && level.length; d++) {
     const next: FolderEntry[] = [];
     for (const parent of level) {
-      if (Date.now() - t0 > budgetMs) {
-        log(`mappen inlezen gestopt na ${budgetMs / 1000} s (${out.length} gevonden)`);
-        break;
-      }
-      for await (const child of safeEntries(parent.handle)) {
+      for await (const child of (parent.handle as any).values() as AsyncIterable<FileSystemHandle>) {
         if (child.kind !== "directory" || child.name.startsWith(".") || child.name.startsWith("~")) continue;
         const e = { path: parent.path ? `${parent.path}/${child.name}` : child.name, handle: child as FileSystemDirectoryHandle };
         out.push(e);
@@ -325,7 +261,6 @@ export async function listFolders(root: FileSystemDirectoryHandle, depth = 1, ca
     }
     level = next;
   }
-  log(`${out.length} klantmappen ingelezen in ${Date.now() - t0} ms`);
   return out.sort((a, b) => a.path.localeCompare(b.path, "nl"));
 }
 
