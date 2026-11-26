@@ -16,7 +16,24 @@ export interface NamedFile {
 export async function buildAttachments(eml: Uint8Array, o: BuildOptions): Promise<NamedFile[]> {
   if (!o.attachmentDate) return [];
   const { extractAttachments, nameAttachments } = await import("./shared/attachments");
-  return nameAttachments(o.attachmentDate, await extractAttachments(eml));
+  const named = nameAttachments(o.attachmentDate, await extractAttachments(eml));
+  if (o.format !== "msg") return named;
+  // Bijgevoegde mails ook als .msg opslaan: die opent classic Outlook direct met een dubbelklik
+  const { emlToMsg } = await import("./shared/mime2msg");
+  const out: NamedFile[] = [];
+  for (const a of named) {
+    const isMail = a.type.toLowerCase().startsWith("message/rfc822") || /\.eml$/i.test(a.name);
+    if (!isMail) {
+      out.push(a);
+      continue;
+    }
+    try {
+      out.push({ name: a.name.replace(/\.eml$/i, "") + ".msg", data: await emlToMsg(a.data), type: "application/vnd.ms-outlook" });
+    } catch {
+      out.push(a); // omzetten lukt niet: dan het origineel als .eml bewaren
+    }
+  }
+  return out;
 }
 
 export interface BuiltFile {

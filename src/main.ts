@@ -145,7 +145,10 @@ function updatePreview() {
 /** Voorbeeldnamen van de bijlagen volgens Outlook (handtekeningplaatjes niet meegeteld). */
 function attachmentNames(): string[] {
   const date = formatIsoDate(f.date.value, settings.dateFormat);
-  return (mail?.attachments ?? []).map((a, i) => attachmentFileName(date, i + 1, a));
+  return (mail?.attachments ?? []).map((a, i) => {
+    const n = attachmentFileName(date, i + 1, a);
+    return settings.format === "msg" ? n.replace(/\.eml$/i, ".msg") : n;
+  });
 }
 
 function setBusy(text: string | null) {
