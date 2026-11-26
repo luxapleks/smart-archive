@@ -115,3 +115,24 @@ test("attachments saved next to the mail with own names; duplicates numbered", a
   assert.deepEqual(r.names, ["261120 - A→B - T.msg", "261120 Bijlage 1 SPA (2).pdf", "261120 Bijlage 2 README"]);
   assert.equal(r.folder, "ACME\\Information\\Inbound");
 });
+
+test("too long path: name is shortened until Windows accepts it", async () => {
+  const root = new MemDir("Meeuwse Handelsonderneming (AN)");
+  root.sub("2026", "2. Information", "2. Inbound");
+  // Simuleer Windows: namen langer dan 80 tekens geven NotFoundError
+  const inbound = root.dirs.get("2026")!.dirs.get("2. Information")!.dirs.get("2. Inbound")!;
+  const orig = inbound.getFileHandle.bind(inbound);
+  inbound.getFileHandle = async (n: string, o?: any) => {
+    if (o?.create && n.length > 80) throw Object.assign(new Error("nf"), { name: "NotFoundError" });
+    return orig(n, o);
+  };
+  const stem = "26 11 26 RGrimminck→PHuibregtse - continuïteitsvraag jaarrekening Re FW Concepten 2025 met toelichting [D2620178_I75526240]";
+  const steps: string[] = [];
+  const r = await saveToDirectory(root as any, stem, files, "Inbound", [{ name: "26 11 26 Bijlage 1 " + "x".repeat(90) + ".pdf", data: new Uint8Array([1]), type: "application/pdf" }], (m) => steps.push(m));
+  assert.equal(r.folder, "Meeuwse Handelsonderneming (AN)\\2026\\2. Information\\2. Inbound");
+  assert.ok(r.names[0].length <= 80, r.names[0]);
+  assert.ok(r.names[0].startsWith("26 11 26 RGrimminck→PHuibregtse - continuïteitsvraag"));
+  assert.ok(r.names[0].endsWith(".msg"));
+  assert.ok(r.names[1].length <= 80 && r.names[1].endsWith(".pdf"), r.names[1]);
+  assert.ok(steps.some((s) => s.includes("ingekort")));
+});

@@ -58,6 +58,14 @@ async function exists(dir: FileSystemDirectoryHandle, name: string): Promise<boo
 }
 
 /** Unieke basisnaam: "naam", "naam (2)", "naam (3)", … */
+/** Naam inkorten tot `max` tekens, bij voorkeur op een woordgrens (begin blijft: datum en namen). */
+export function shortenStem(stem: string, max: number): string {
+  if (!isFinite(max) || stem.length <= max) return stem;
+  const cut = stem.slice(0, max);
+  const sp = cut.lastIndexOf(" ");
+  return (sp > max * 0.6 ? cut.slice(0, sp) : cut).replace(/[\s.\-–,]+$/, "");
+}
+
 /** Unieke bestandsnaam: "naam.pdf", "naam (2).pdf", … */
 export async function uniqueName(dir: FileSystemDirectoryHandle, base: string, ext: string): Promise<string> {
   for (let i = 1; i < 100; i++) {
@@ -138,20 +146,46 @@ export async function saveToDirectory(
     await w.write(new Blob([data as Uint8Array<ArrayBuffer>], { type }));
     await w.close();
   };
-  const finalStem = await uniqueStem(target, stem, files.map((f) => f.ext));
   const names: string[] = [];
-  for (const f of files) {
-    const name = `${finalStem}.${f.ext}`;
-    await write(name, f.data, f.type);
-    names.push(name);
+
+  // Windows weigert paden langer dan ~260 tekens (fout "NotFoundError"). Het volledige
+  // pad kennen we niet, dus: lukt schrijven niet, dan de naam stap voor stap inkorten.
+  const LIMITS = [Infinity, 120, 100, 85, 70, 55, 42];
+  for (const limit of LIMITS) {
+    const s = shortenStem(stem, limit);
+    if (limit !== Infinity && s === shortenStem(stem, LIMITS[LIMITS.indexOf(limit) - 1])) continue;
+    const finalStem = await uniqueStem(target, s, files.map((f) => f.ext));
+    try {
+      const done: string[] = [];
+      for (const f of files) {
+        const name = `${finalStem}.${f.ext}`;
+        await write(name, f.data, f.type);
+        done.push(name);
+      }
+      names.push(...done);
+      if (limit !== Infinity) onStep?.(`naam ingekort tot ${s.length} tekens (pad te lang voor Windows)`);
+      break;
+    } catch (e: any) {
+      if (e?.name !== "NotFoundError" || limit === LIMITS[LIMITS.length - 1]) throw e;
+      onStep?.(`te lang pad, naam inkorten…`);
+    }
   }
-  // Bijlagen: elk een eigen naam; bij een bestaande naam "… (2).pdf"
+
+  // Bijlagen: elk een eigen naam; bij een bestaande naam "… (2).pdf"; zo nodig ingekort
   for (const x of extras) {
     const m = x.name.match(/^(.*?)(\.[^.]+)?$/)!;
     const ext = m[2] ?? "";
-    const name = await uniqueName(target, m[1], ext);
-    await write(name, x.data, x.type);
-    names.push(name);
+    for (const limit of LIMITS) {
+      const base = shortenStem(m[1], limit);
+      const name = await uniqueName(target, base, ext);
+      try {
+        await write(name, x.data, x.type);
+        names.push(name);
+        break;
+      } catch (e: any) {
+        if (e?.name !== "NotFoundError" || limit === LIMITS[LIMITS.length - 1]) throw e;
+      }
+    }
   }
   return { folder: [picked.name, ...path].join("\\"), names };
 }
