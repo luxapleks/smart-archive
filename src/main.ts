@@ -902,7 +902,18 @@ Office.onReady(() => {
     }
   });
   $("load-skip").addEventListener("click", () => skipFolders?.());
-  $("back").addEventListener("click", () => void load());
+  // Sluiten: paneel dichtdoen; kan dat niet in deze Outlook, dan terug naar het formulier
+  $("back").addEventListener("click", () => {
+    try {
+      if (Office.context.ui?.closeContainer) {
+        Office.context.ui.closeContainer();
+        return;
+      }
+    } catch (e: any) {
+      logLine(`sluiten lukte niet: ${e?.message ?? e}`);
+    }
+    void load();
+  });
   $("toggle-settings").addEventListener("click", () => (current === "settings" ? show(lastState) : openSettings()));
   sections.settings.addEventListener("submit", (e) => void saveSettings(e as SubmitEvent));
   $("s-cancel").addEventListener("click", () => show(lastState));
