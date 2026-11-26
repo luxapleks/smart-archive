@@ -115,9 +115,11 @@ export async function saveToDirectory(
   files: { ext: string; data: Uint8Array; type: string }[],
   subfolder: string,
   extras: { name: string; data: Uint8Array; type: string }[] = [],
+  onStep?: (m: string) => void,
 ): Promise<SaveResult> {
   let target: FileSystemDirectoryHandle = picked;
   let path: string[] = [];
+  onStep?.(`submap zoeken in '${picked.name}'`);
   // Kiest de gebruiker zelf al de Inbound-map, dan daar opslaan
   if (subfolder && !matchesSubfolder(picked.name, subfolder)) {
     const found = await findSubfolder(picked, subfolder);
@@ -128,7 +130,9 @@ export async function saveToDirectory(
       path = [target.name];
     }
   }
+  onStep?.(`doelmap: ${[picked.name, ...path].join("\\")}`);
   const write = async (name: string, data: Uint8Array, type: string) => {
+    onStep?.(`schrijven: ${name} (${Math.round(data.byteLength / 1024)} kB)`);
     const fh = await target.getFileHandle(name, { create: true });
     const w = await fh.createWritable();
     await w.write(new Blob([data as Uint8Array<ArrayBuffer>], { type }));

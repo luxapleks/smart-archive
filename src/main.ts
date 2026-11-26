@@ -184,9 +184,12 @@ function logLine(text: string) {
   const stamp = `${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}:${String(t.getSeconds()).padStart(2, "0")}.${String(t.getMilliseconds()).padStart(3, "0")}`;
   loadLog.push(`${stamp} ${text}`);
   if (loadLog.length > 300) loadLog.splice(0, loadLog.length - 300);
-  const el = $("load-log");
-  el.textContent = loadLog.slice(-40).join("\n");
-  el.scrollTop = el.scrollHeight;
+  for (const id of ["load-log", "form-log"]) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    el.textContent = loadLog.slice(-60).join("\n");
+    el.scrollTop = el.scrollHeight;
+  }
 }
 
 /** Start een stap; geeft een functie terug die de stap afsluit met de duur. */
@@ -486,20 +489,31 @@ async function load() {
 async function saveInto(dir: FileSystemDirectoryHandle, relPath?: string, favId?: string) {
   if (!mail) return;
   setBusy("Mail ophalen…");
+  let done = step("mail ophalen uit Outlook (volledige mail)");
   const eml = await getEml();
+  done(`${Math.round(eml.byteLength / 1024)} kB`);
   setBusy("Bestand maken…");
   const opts = buildOptions();
+  done = step(`bestand maken (.${opts.format})`);
   const files = await buildFiles(eml, opts);
+  done();
+  done = step("bijlagen klaarmaken");
   const extras = await buildAttachments(eml, opts);
+  done(`${extras.length} bijlage(n)`);
   setBusy(extras.length ? `Opslaan (mail + ${extras.length} bijlage${extras.length > 1 ? "n" : ""})…` : "Opslaan…");
-  const res = await saveToDirectory(dir, stem(), files, subfolder(), extras);
-  if (favId) await rememberPath(counterpart()?.address, `fav:${favId}`);
+  done = step(`wegschrijven in '${dir.name}' (submap '${subfolder() || "-"}')`);
+  const res = await saveToDirectory(dir, stem(), files, subfolder(), extras, (m) => logLine(`  ${m}`));
+  done(res.folder);
   if (relPath !== undefined && root) {
-    await rememberPath(counterpart()?.address, relPath);
     // "Prospects\ACME\Information\Inbound" i.p.v. alleen "ACME\Information\Inbound"
     res.folder = [root.name, ...relPath.split("/"), ...res.folder.split("\\").slice(1)].join("\\");
   }
   await finish(res);
+  // Keuze onthouden ná de bevestiging, en nooit langer dan 4 s
+  const key = favId ? `fav:${favId}` : relPath;
+  if (key !== undefined) {
+    await Promise.race([rememberPath(counterpart()?.address, key), new Promise((r) => setTimeout(r, 4000))]);
+  }
 }
 
 async function finish(res: SaveResult) {
@@ -631,6 +645,7 @@ async function onSave(ev?: Event) {
     }
     await saveInto(entry.handle, entry.path);
   } catch (e: any) {
+    logLine(`✗ opslaan mislukt: ${e?.name ?? ""} ${e?.message ?? e}`);
     setBusy(null);
     if (e?.name === "NotFoundError") {
       folders = null; // map verplaatst/verwijderd: opnieuw inlezen
@@ -915,6 +930,18 @@ Office.onReady(() => {
     }
   });
   $("load-skip").addEventListener("click", () => skipFolders?.());
+  $("form-log-copy").addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(loadLog.join("\n"));
+      $("form-log-copy").textContent = "Gekopieerd ✓ – plak het in de chat";
+    } catch {
+      const r = document.createRange();
+      r.selectNodeContents($("form-log"));
+      getSelection()?.removeAllRanges();
+      getSelection()?.addRange(r);
+      $("form-log-copy").textContent = "Tekst geselecteerd – druk op Ctrl+C";
+    }
+  });
   // Sluiten: paneel dichtdoen; kan dat niet in deze Outlook, dan terug naar het formulier
   $("back").addEventListener("click", () => {
     try {
