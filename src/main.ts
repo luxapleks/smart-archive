@@ -17,6 +17,10 @@ import {
   saveToDirectory,
   setFavorites,
   setRoot,
+  clearRoot,
+  stillExists,
+  diag,
+  log,
   type Favorite,
   type FolderEntry,
   type SaveResult,
@@ -190,6 +194,16 @@ async function openRoot(ask: boolean): Promise<boolean> {
   }
   if (!folders) {
     f.unlock.textContent = "Mappen inlezen…";
+    if (!(await stillExists(root))) {
+      log(`archiefmap '${root.name}' niet meer gevonden`);
+      const name = root.name;
+      root = null;
+      folders = null;
+      await clearRoot();
+      renderRootState();
+      showWarning(`Je archiefmap '${name}' is niet meer te vinden (verplaatst, hernoemd of niet meer gesynchroniseerd). Kies hem opnieuw.`);
+      return false;
+    }
     folders = await listFolders(root, settings.folderDepth);
   }
   return true;
@@ -358,7 +372,9 @@ async function load() {
   }, 15000);
   try {
     settings = getSettings();
+    const t0 = Date.now();
     const m = await readCurrentMail();
+    log(`mail gelezen in ${Date.now() - t0} ms`);
     if (seq !== loadSeq) return;
     if (!m) {
       show("error", "Selecteer een e-mail om te archiveren.");
@@ -392,9 +408,11 @@ function withTimeout<T>(p: Promise<T>, ms: number, fallback: T): Promise<T> {
 }
 
 async function initFolders(seq: number) {
+  const t0 = Date.now();
   try {
     root ??= (await withTimeout(getRoot(), 5000, undefined)) ?? null;
     favorites = await withTimeout(getFavorites(), 5000, favorites);
+    log(`archiefmap/favorieten opgehaald in ${Date.now() - t0} ms (archiefmap: ${root?.name ?? "geen"})`);
     if (seq !== loadSeq) return;
     renderRootState();
     // Al toestemming (eerder deze sessie)? Dan direct de mappen inlezen, zonder melding
@@ -662,6 +680,7 @@ const s = {
 
 function openSettings() {
   settings = getSettings();
+  $("s-diag").textContent = diag.join("\n") || "Nog niets gelogd.";
   s.root.textContent = root ? root.name : "Nog niet gekozen";
   s.depth.value = String(settings.folderDepth);
   s.dateFmt.value = settings.dateFormat;
@@ -797,9 +816,10 @@ Office.onReady(() => {
   f.unlock.addEventListener("click", async () => {
     try {
       if (await openRoot(true)) await buildFolderOptions();
-      else showWarning("Geen toestemming gekregen. Probeer opnieuw.");
+      else if (root) showWarning("Geen toestemming gekregen. Probeer opnieuw.");
     } catch (e: any) {
-      showWarning(e?.message ?? String(e));
+      log(`openen archiefmap: ${e?.name} ${e?.message}`);
+      showWarning(`Klantmappen openen lukte niet (${e?.name ?? "fout"}). Kies via ⚙ de archiefmap opnieuw.`);
     } finally {
       renderRootState();
     }
@@ -822,6 +842,14 @@ Office.onReady(() => {
   $("rem-manual").addEventListener("click", manualReminder);
   $("rem-done").addEventListener("click", leaveWelcome);
   $("s-reminder").addEventListener("click", () => openWelcome(true));
+  $("s-diag-copy").addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(diag.join("\n"));
+      $("s-diag-copy").textContent = "Gekopieerd ✓";
+    } catch {
+      $("s-diag-copy").textContent = "Kopiëren lukte niet";
+    }
+  });
 
   Office.context.mailbox.addHandlerAsync(Office.EventType.ItemChanged, () => {
     if (current !== "welcome") void load();
