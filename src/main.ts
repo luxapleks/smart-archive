@@ -212,7 +212,7 @@ async function openRoot(ask: boolean): Promise<boolean> {
   if (!root) return false;
   const perm = step(`toestemming archiefmap controleren`);
   const has = await hasPermission(root as any);
-  perm(has ? "toestemming aanwezig" : "nog geen toestemming");
+  perm(has ? "toestemming aanwezig" : "nog geen toestemming (of geen antwoord binnen 1,5 s)");
   if (!has) {
     if (!ask || !(await ensurePermission(root as any))) return false;
   }

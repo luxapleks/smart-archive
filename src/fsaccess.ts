@@ -38,10 +38,14 @@ export async function pickDirectory(startIn?: FileSystemHandle): Promise<DirHand
   }
 }
 
+/**
+ * Toestemming vragen (alleen na een klik van de gebruiker).
+ * Direct requestPermission: is er al toestemming, dan komt er geen melding.
+ * Bewust géén queryPermission vooraf: die blijft in classic Outlook soms eindeloos hangen.
+ */
 export async function ensurePermission(h: DirHandle): Promise<boolean> {
-  if (!h.queryPermission) return true;
-  if ((await h.queryPermission({ mode: "readwrite" })) === "granted") return true;
-  return (await h.requestPermission?.({ mode: "readwrite" })) === "granted";
+  if (!h.requestPermission) return true;
+  return (await h.requestPermission({ mode: "readwrite" })) === "granted";
 }
 
 async function exists(dir: FileSystemDirectoryHandle, name: string): Promise<boolean> {
@@ -211,8 +215,18 @@ export async function setRoot(h: FileSystemDirectoryHandle): Promise<void> {
   await idb("readwrite", (s) => s.put(h, "root"));
 }
 
-export async function hasPermission(h: DirHandle): Promise<boolean> {
-  return !h.queryPermission || (await h.queryPermission({ mode: "readwrite" })) === "granted";
+/**
+ * Is er al toestemming? In classic Outlook (WebView2) geeft queryPermission na een
+ * herstart soms nooit antwoord. Na `timeoutMs` gaan we uit van "nog geen toestemming";
+ * de gebruiker klikt dan op 'Klantmappen openen'.
+ */
+export async function hasPermission(h: DirHandle, timeoutMs = 1500): Promise<boolean> {
+  if (!h.queryPermission) return true;
+  const answer = await Promise.race([
+    h.queryPermission({ mode: "readwrite" }).catch(() => "prompt" as PermissionState),
+    new Promise<"timeout">((r) => setTimeout(() => r("timeout"), timeoutMs)),
+  ]);
+  return answer === "granted";
 }
 
 export interface FolderEntry {
