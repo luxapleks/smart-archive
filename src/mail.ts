@@ -11,14 +11,9 @@ function item(): Office.MessageRead | null {
 export async function readCurrentMail(): Promise<MailInfo | null> {
   const it = item();
   if (!it) return null;
-  // Tekst ophalen, maar nooit langer dan 6 s wachten (de tekst is alleen voor mapvoorstellen)
-  const body = await new Promise<string>((resolve) => {
-    const timer = setTimeout(() => resolve(""), 6000);
-    it.body.getAsync(Office.CoercionType.Text, (r) => {
-      clearTimeout(timer);
-      resolve(r.status === Office.AsyncResultStatus.Succeeded ? r.value : "");
-    });
-  });
+  const body = await new Promise<string>((resolve) =>
+    it.body.getAsync(Office.CoercionType.Text, (r) => resolve(r.status === Office.AsyncResultStatus.Succeeded ? r.value : "")),
+  );
   return {
     subject: it.subject ?? "",
     from: toPerson(it.from),
