@@ -21,6 +21,7 @@ import {
   type FolderEntry,
   type SaveResult,
 } from "./fsaccess";
+import { APP_VERSION, ensureLatest } from "./version";
 import { getSettings, setSettings, type DateFormat, type Format, type Settings } from "./store";
 import { buildReminderIcs, firstOccurrence, PRESETS, REMINDER_SUBJECT, type ReminderKind } from "./shared/ics";
 
@@ -383,7 +384,7 @@ async function load() {
   loadLog.length = 0;
   $("load-log").textContent = "";
   $("load-help").hidden = true;
-  logLine(`start (add-in geladen, Outlook ${Office.context.diagnostics?.version ?? "?"}, ${Office.context.diagnostics?.platform ?? "?"})`);
+  logLine(`start (add-in versie ${APP_VERSION}, Outlook ${Office.context.diagnostics?.version ?? "?"}, ${Office.context.diagnostics?.platform ?? "?"})`);
   // Na 8 s: hulpknoppen tonen, met de stap die nog loopt
   setTimeout(() => {
     if (seq === loadSeq && current === "loading") {
@@ -816,6 +817,8 @@ function leaveWelcome() {
 }
 
 /* --------------------------------------------------------------- start */
+
+void ensureLatest();
 
 Office.onReady(() => {
   settings = getSettings();
