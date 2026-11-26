@@ -147,7 +147,7 @@ function attachmentNames(): string[] {
   const date = formatIsoDate(f.date.value, settings.dateFormat);
   return (mail?.attachments ?? []).map((a, i) => {
     const n = attachmentFileName(date, i + 1, a);
-    return settings.format === "msg" ? n.replace(/\.eml$/i, ".msg") : n;
+    return n.replace(/\.eml$/i, ".pdf");
   });
 }
 
@@ -500,17 +500,26 @@ async function saveInto(dir: FileSystemDirectoryHandle, relPath?: string, favId?
 }
 
 async function finish(res: SaveResult) {
-  const warnings: string[] = [];
-  const catWarn = await addCategory(settings.category);
-  if (catWarn) warnings.push(catWarn);
+  // Eerst het bevestigingsscherm met Captain Quality: dat mag nergens op wachten
   $("done-sub").textContent = res.folder;
   $("done-files").innerHTML = res.names.map((n) => `<li>${escapeHtml(n)}</li>`).join("");
   const w = $("done-warning");
-  w.hidden = !warnings.length;
-  w.textContent = warnings.join(" ");
+  w.hidden = true;
+  w.textContent = "";
   setBusy(null);
   show("done");
-  celebrate();
+  try {
+    celebrate();
+  } catch (e: any) {
+    logLine(`✗ animatie: ${e?.message ?? e}`);
+  }
+  logLine(`opgeslagen: ${res.names.length} bestand(en) in ${res.folder}`);
+  // Categorie daarna; geeft Outlook geen antwoord, dan na 4 s gewoon laten
+  const catWarn = await Promise.race([addCategory(settings.category), new Promise<string | null>((r) => setTimeout(() => r(null), 4000))]);
+  if (catWarn) {
+    w.hidden = false;
+    w.textContent = catWarn;
+  }
 }
 
 /* ------------------------------------------------------- een klein feestje */

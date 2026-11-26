@@ -17,9 +17,8 @@ export async function buildAttachments(eml: Uint8Array, o: BuildOptions): Promis
   if (!o.attachmentDate) return [];
   const { extractAttachments, nameAttachments } = await import("./shared/attachments");
   const named = nameAttachments(o.attachmentDate, await extractAttachments(eml));
-  if (o.format !== "msg") return named;
-  // Bijgevoegde mails ook als .msg opslaan: die opent classic Outlook direct met een dubbelklik
-  const { emlToMsg } = await import("./shared/mime2msg");
+  // Bijgevoegde mails als PDF opslaan: altijd te openen en te lezen.
+  // (Het origineel zit ook nog in de .msg/.eml van de mail zelf.)
   const out: NamedFile[] = [];
   for (const a of named) {
     const isMail = a.type.toLowerCase().startsWith("message/rfc822") || /\.eml$/i.test(a.name);
@@ -28,9 +27,11 @@ export async function buildAttachments(eml: Uint8Array, o: BuildOptions): Promis
       continue;
     }
     try {
-      out.push({ name: a.name.replace(/\.eml$/i, "") + ".msg", data: await emlToMsg(a.data), type: "application/vnd.ms-outlook" });
+      const { emlToPdf } = await import("./shared/pdf");
+      const name = a.name.replace(/\.eml$/i, "") + ".pdf";
+      out.push({ name, data: await emlToPdf(a.data, { footer: name }), type: "application/pdf" });
     } catch {
-      out.push(a); // omzetten lukt niet: dan het origineel als .eml bewaren
+      out.push(a); // PDF maken lukt niet: dan het origineel als .eml bewaren
     }
   }
   return out;

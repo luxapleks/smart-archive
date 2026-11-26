@@ -66,7 +66,7 @@ export async function extractAttachments(eml: Uint8Array): Promise<RawAttachment
 }
 
 /** "261120 Bijlage 1 Concept SPA v3.pdf" – maximaal `maxLen` tekens, extensie blijft behouden. */
-export function attachmentFileName(date: string, index: number, original: string, maxLen = 150): string {
+export function attachmentFileName(date: string, index: number, original: string, maxLen = 100): string {
   const m = original.match(/^(.*?)(\.[A-Za-z0-9]{1,8})?$/)!;
   const ext = (m[2] ?? "").toLowerCase();
   const base = sanitizeSegment(m[1] || "bijlage");
