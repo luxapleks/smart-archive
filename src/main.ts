@@ -13,6 +13,7 @@ import {
   pickDirectory,
   pickerAvailable,
   rememberPath,
+  takeIdbIssue,
   rememberedPath,
   saveToDirectory,
   setFavorites,
@@ -197,7 +198,11 @@ function step(label: string) {
   lastStepStart = Date.now();
   logLine(`▶ ${label}…`);
   const t0 = lastStepStart;
-  return (extra = "") => logLine(`✓ ${label} (${Date.now() - t0} ms)${extra ? " – " + extra : ""}`);
+  return (extra = "") => {
+    logLine(`✓ ${label} (${Date.now() - t0} ms)${extra ? " – " + extra : ""}`);
+    const issue = takeIdbIssue();
+    if (issue) logLine(`  ⚠ ${issue}`);
+  };
 }
 
 let skipFolders: (() => void) | null = null;
@@ -600,6 +605,7 @@ async function onSave(ev?: Event) {
   ev?.preventDefault();
   if (!mail) return;
   f.warning.hidden = canExport();
+  logLine("klik: Opslaan");
   const opt = selectedOption();
   if (!root && !favorites.length) return pickAndSave();
   if (!opt) {
@@ -905,6 +911,7 @@ Office.onReady(() => {
   f.addFav.addEventListener("click", () => void addOutsideFavorite());
   $("choose-root").addEventListener("click", () => void chooseRoot());
   f.unlock.addEventListener("click", async () => {
+    logLine("klik: Klantmappen openen");
     try {
       if (await openRoot(true)) await buildFolderOptions();
       else showWarning("Geen toestemming gekregen. Probeer opnieuw.");

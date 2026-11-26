@@ -170,15 +170,33 @@ function db(): Promise<IDBDatabase> {
   });
 }
 
+/** Laatste melding van de lokale opslag (voor het logboek). */
+let idbIssue = "";
+export function takeIdbIssue(): string {
+  const m = idbIssue;
+  idbIssue = "";
+  return m;
+}
+
 async function idb<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest<T>): Promise<T | undefined> {
-  try {
+  const work = (async () => {
     const d = await db();
     return await new Promise<T>((resolve, reject) => {
       const r = fn(d.transaction(STORE, mode).objectStore(STORE));
       r.onsuccess = () => resolve(r.result);
       r.onerror = () => reject(r.error);
     });
-  } catch {
+  })();
+  try {
+    // Lokale opslag mag nooit iets blokkeren: na 3 s gewoon zonder verder
+    const r = await Promise.race([work, new Promise<"timeout">((res) => setTimeout(() => res("timeout"), 3000))]);
+    if (r === "timeout") {
+      idbIssue = `lokale opslag gaf geen antwoord binnen 3 s (${mode})`;
+      return undefined;
+    }
+    return r as T;
+  } catch (e: any) {
+    idbIssue = `lokale opslag: ${e?.name ?? ""} ${e?.message ?? e}`;
     return undefined; // opslag niet beschikbaar: gewoon niet onthouden
   }
 }
@@ -282,7 +300,6 @@ export async function listFolders(
       let seen = 0;
       for await (const child of (parent.handle as any).values() as AsyncIterable<FileSystemHandle>) {
         seen++;
-        onProgress?.(`  #${seen} gelezen: ${child.name} (${child.kind === "directory" ? "map" : "bestand"})`);
         if (child.kind !== "directory" || child.name.startsWith(".") || child.name.startsWith("~")) continue;
         const e = { path: parent.path ? `${parent.path}/${child.name}` : child.name, handle: child as FileSystemDirectoryHandle };
         out.push(e);
