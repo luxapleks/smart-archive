@@ -289,6 +289,9 @@ async function buildFolderOptions() {
 }
 
 function renderOptions(selectedKey?: string) {
+  // Zonder expliciete keuze: de huidige selectie behouden (achtergrond-updates mogen die niet resetten)
+  selectedKey ??= selectedOption()?.key;
+  if (selectedKey && !options.some((o) => o.key === selectedKey)) selectedKey = undefined;
   f.suggestions.innerHTML = "";
   if (!options.length) {
     if (folders) f.suggestions.innerHTML = `<p class="empty">Geen voorstel — zoek de klantmap hieronder.</p>`;
@@ -589,6 +592,7 @@ async function onSave(ev?: Event) {
     showWarning("Kies eerst een klantmap.");
     return;
   }
+  logLine(`opslaan: gekozen '${opt.label}' (${opt.fav?.handle ? "favoriet buiten archiefmap" : opt.fav ? "favoriet" : "voorstel/zoekresultaat"})`);
   try {
     // Losse favoriet buiten de archiefmap: eigen toestemming
     if (opt.fav?.handle) {
@@ -609,11 +613,20 @@ async function onSave(ev?: Event) {
       showWarning("Geen toestemming voor de archiefmap.");
       return;
     }
-    const entry = folders?.find((x) => x.path === opt.path);
+    let entry = folders?.find((x) => x.path === opt.path);
+    if (!entry && root && opt.path) {
+      // Niet in de ingelezen lijst (bv. dieper, of lijst nog niet compleet): direct vanaf de archiefmap openen
+      try {
+        let h: FileSystemDirectoryHandle = root;
+        for (const seg of opt.path.split("/")) h = await h.getDirectoryHandle(seg);
+        entry = { path: opt.path, handle: h };
+        logLine(`  map direct geopend: ${opt.path}`);
+      } catch (e: any) {
+        logLine(`  map niet te openen: ${opt.path} (${e?.name})`);
+      }
+    }
     if (!entry) {
-      await buildFolderOptions();
-      renderRootState();
-      showWarning(`Map '${opt.label}' niet gevonden in ${root?.name ?? "de archiefmap"}. Kies opnieuw.`);
+      showWarning(`Map '${opt.label}' niet gevonden in ${root?.name ?? "de archiefmap"}. Is de map verplaatst of hernoemd? Kies hem opnieuw.`);
       return;
     }
     await saveInto(entry.handle, entry.path);
