@@ -436,10 +436,10 @@ async function load() {
     updateHint();
 
     done = step("archiefmap ophalen uit lokale opslag");
-    root ??= (await getRoot()) ?? null;
+    root ??= (await Promise.race([getRoot(), new Promise<undefined>((r) => setTimeout(() => r(undefined), 4000))])) ?? null;
     done(root ? `'${root.name}'` : "geen archiefmap ingesteld");
     done = step("favorieten ophalen uit lokale opslag");
-    favorites = await getFavorites();
+    favorites = await Promise.race([getFavorites(), new Promise<Favorite[]>((r) => setTimeout(() => r(favorites), 4000))]);
     done(`${favorites.length} favorieten`);
     if (seq !== loadSeq) return;
     options = [];
@@ -447,13 +447,26 @@ async function load() {
     // Al toestemming (eerder deze sessie)? Dan direct de mappen tonen, zonder melding
     if (root && folders === null) {
       const skipped = new Promise<"skip">((r) => (skipFolders = () => r("skip")));
-      const res = await Promise.race([openRoot(false).catch((e) => (logLine(`✗ fout: ${e?.name} ${e?.message}`), false)), skipped]);
+      // Nooit langer dan 5 s op de klantmappen wachten: daarna paneel tonen, mappen komen later
+      const auto = new Promise<"auto">((r) => setTimeout(() => r("auto"), 5000));
+      const opening = openRoot(false).catch((e) => (logLine(`✗ fout: ${e?.name} ${e?.message}`), false));
+      const res = await Promise.race([opening, skipped, auto]);
       skipFolders = null;
       if (res === "skip") logLine("⏭ klantmappen overgeslagen door gebruiker");
+      if (res === "auto") {
+        logLine("⏭ klantmappen duren te lang: paneel alvast getoond, mappen volgen");
+        void opening.then(async (ok) => {
+          if (ok && seq === loadSeq) {
+            await buildFolderOptions();
+            renderRootState();
+            logLine("klantmappen alsnog geladen");
+          }
+        });
+      }
     }
     if (seq !== loadSeq) return;
     done = step("mapvoorstellen maken");
-    await buildFolderOptions();
+    await Promise.race([buildFolderOptions(), new Promise((r) => setTimeout(r, 4000))]);
     done(`${options.length} voorstellen`);
     renderRootState();
 

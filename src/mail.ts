@@ -11,9 +11,14 @@ function item(): Office.MessageRead | null {
 export async function readCurrentMail(): Promise<MailInfo | null> {
   const it = item();
   if (!it) return null;
-  const body = await new Promise<string>((resolve) =>
-    it.body.getAsync(Office.CoercionType.Text, (r) => resolve(r.status === Office.AsyncResultStatus.Succeeded ? r.value : "")),
-  );
+  // Tekst is alleen voor mapvoorstellen: nooit langer dan 5 s op wachten
+  const body = await new Promise<string>((resolve) => {
+    const timer = setTimeout(() => resolve(""), 5000);
+    it.body.getAsync(Office.CoercionType.Text, (r) => {
+      clearTimeout(timer);
+      resolve(r.status === Office.AsyncResultStatus.Succeeded ? r.value : "");
+    });
+  });
   return {
     subject: it.subject ?? "",
     from: toPerson(it.from),
