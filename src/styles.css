@@ -367,3 +367,18 @@ main.dialog { padding: 18px; display: flex; flex-direction: column; gap: 10px; }
 #rem-options .check span { display: block; }
 #rem-options .check small { color: var(--muted); }
 #rem-after .steps { margin-top: 4px; }
+
+/* ---- logboek tijdens laden ---- */
+.load-log {
+  text-align: left;
+  font: 11px/1.45 ui-monospace, "Cascadia Mono", Consolas, monospace;
+  background: var(--bg-soft);
+  border-radius: 4px;
+  padding: 6px 8px;
+  margin: 10px 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 260px;
+  overflow: auto;
+}
+.load-log:empty { display: none; }

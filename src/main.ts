@@ -169,6 +169,31 @@ function updateHint() {
   f.direction.textContent = sentByMe() ? `verzonden → ${settings.subfolderOut || "klantmap"}` : `ontvangen → ${settings.subfolder || "klantmap"}`;
 }
 
+/* ------------------------------------------------------- logboek */
+
+const loadLog: string[] = [];
+let lastStepStart = 0;
+
+function logLine(text: string) {
+  const t = new Date();
+  const stamp = `${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}:${String(t.getSeconds()).padStart(2, "0")}.${String(t.getMilliseconds()).padStart(3, "0")}`;
+  loadLog.push(`${stamp} ${text}`);
+  if (loadLog.length > 300) loadLog.splice(0, loadLog.length - 300);
+  const el = $("load-log");
+  el.textContent = loadLog.slice(-40).join("\n");
+  el.scrollTop = el.scrollHeight;
+}
+
+/** Start een stap; geeft een functie terug die de stap afsluit met de duur. */
+function step(label: string) {
+  lastStepStart = Date.now();
+  logLine(`▶ ${label}…`);
+  const t0 = lastStepStart;
+  return (extra = "") => logLine(`✓ ${label} (${Date.now() - t0} ms)${extra ? " – " + extra : ""}`);
+}
+
+let skipFolders: (() => void) | null = null;
+
 /* ------------------------------------------------------ klantmappen */
 
 function renderRootState() {
@@ -185,12 +210,17 @@ function renderRootState() {
 /** Klantmappen inlezen (vereist toestemming; vraagt die zo nodig met één melding). */
 async function openRoot(ask: boolean): Promise<boolean> {
   if (!root) return false;
-  if (!(await hasPermission(root as any))) {
+  const perm = step(`toestemming archiefmap controleren`);
+  const has = await hasPermission(root as any);
+  perm(has ? "toestemming aanwezig" : "nog geen toestemming");
+  if (!has) {
     if (!ask || !(await ensurePermission(root as any))) return false;
   }
   if (!folders) {
     f.unlock.textContent = "Mappen inlezen…";
-    folders = await listFolders(root, settings.folderDepth);
+    const done = step(`klantmappen inlezen in '${root.name}' (diepte ${settings.folderDepth})`);
+    folders = await listFolders(root, settings.folderDepth, 5000, (m) => logLine(m));
+    done(`${folders.length} mappen`);
   }
   return true;
 }
@@ -350,9 +380,24 @@ function onSearch() {
 async function load() {
   const seq = ++loadSeq;
   if (current !== "settings") show("loading");
+  loadLog.length = 0;
+  $("load-log").textContent = "";
+  $("load-help").hidden = true;
+  logLine(`start (add-in geladen, Outlook ${Office.context.diagnostics?.version ?? "?"}, ${Office.context.diagnostics?.platform ?? "?"})`);
+  // Na 8 s: hulpknoppen tonen, met de stap die nog loopt
+  setTimeout(() => {
+    if (seq === loadSeq && current === "loading") {
+      logLine(`⏳ nog bezig na ${Math.round((Date.now() - lastStepStart) / 1000)} s met de laatste stap hierboven`);
+      $("load-help").hidden = false;
+    }
+  }, 8000);
   try {
+    let done = step("instellingen lezen");
     settings = getSettings();
+    done();
+    done = step("mail lezen (onderwerp, afzender, tekst)");
     const m = await readCurrentMail();
+    done(m ? `${(m.body ?? "").length} tekens tekst, ${(m.attachments ?? []).length} bijlagen` : "geen mail geselecteerd");
     if (seq !== loadSeq) return;
     if (!m) {
       show("error", "Selecteer een e-mail om te archiveren.");
@@ -370,19 +415,32 @@ async function load() {
     updatePreview();
     updateHint();
 
+    done = step("archiefmap ophalen uit lokale opslag");
     root ??= (await getRoot()) ?? null;
+    done(root ? `'${root.name}'` : "geen archiefmap ingesteld");
+    done = step("favorieten ophalen uit lokale opslag");
     favorites = await getFavorites();
+    done(`${favorites.length} favorieten`);
     if (seq !== loadSeq) return;
     options = [];
     f.suggestions.innerHTML = "";
     // Al toestemming (eerder deze sessie)? Dan direct de mappen tonen, zonder melding
-    if (root && folders === null) await openRoot(false).catch(() => false);
+    if (root && folders === null) {
+      const skipped = new Promise<"skip">((r) => (skipFolders = () => r("skip")));
+      const res = await Promise.race([openRoot(false).catch((e) => (logLine(`✗ fout: ${e?.name} ${e?.message}`), false)), skipped]);
+      skipFolders = null;
+      if (res === "skip") logLine("⏭ klantmappen overgeslagen door gebruiker");
+    }
     if (seq !== loadSeq) return;
+    done = step("mapvoorstellen maken");
     await buildFolderOptions();
+    done(`${options.length} voorstellen`);
     renderRootState();
 
+    logLine("klaar");
     if (current !== "settings") show("form");
   } catch (e: any) {
+    logLine(`✗ fout: ${e?.name ?? ""} ${e?.message ?? e}`);
     if (seq === loadSeq) show("error", e?.message ?? String(e));
   }
 }
@@ -778,6 +836,21 @@ Office.onReady(() => {
     }
   });
   $("retry").addEventListener("click", () => void load());
+  $("load-copy").addEventListener("click", async () => {
+    const text = loadLog.join("\n");
+    try {
+      await navigator.clipboard.writeText(text);
+      $("load-copy").textContent = "Gekopieerd ✓ – plak het in de chat";
+    } catch {
+      // Terugval: tekst selecteren zodat Ctrl+C werkt
+      const r = document.createRange();
+      r.selectNodeContents($("load-log"));
+      getSelection()?.removeAllRanges();
+      getSelection()?.addRange(r);
+      $("load-copy").textContent = "Tekst geselecteerd – druk op Ctrl+C";
+    }
+  });
+  $("load-skip").addEventListener("click", () => skipFolders?.());
   $("back").addEventListener("click", () => void load());
   $("toggle-settings").addEventListener("click", () => (current === "settings" ? show(lastState) : openSettings()));
   sections.settings.addEventListener("submit", (e) => void saveSettings(e as SubmitEvent));

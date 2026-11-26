@@ -221,13 +221,22 @@ export interface FolderEntry {
 }
 
 /** Klantmappen onder de root, tot `depth` niveaus. */
-export async function listFolders(root: FileSystemDirectoryHandle, depth = 1, cap = 5000): Promise<FolderEntry[]> {
+export async function listFolders(
+  root: FileSystemDirectoryHandle,
+  depth = 1,
+  cap = 5000,
+  onProgress?: (msg: string) => void,
+): Promise<FolderEntry[]> {
   const out: FolderEntry[] = [];
   let level: FolderEntry[] = [{ path: "", handle: root }];
   for (let d = 0; d < depth && level.length; d++) {
     const next: FolderEntry[] = [];
     for (const parent of level) {
+      onProgress?.(`map openen: ${parent.path || root.name}`);
+      let seen = 0;
       for await (const child of (parent.handle as any).values() as AsyncIterable<FileSystemHandle>) {
+        seen++;
+        onProgress?.(`  #${seen} gelezen: ${child.name} (${child.kind === "directory" ? "map" : "bestand"})`);
         if (child.kind !== "directory" || child.name.startsWith(".") || child.name.startsWith("~")) continue;
         const e = { path: parent.path ? `${parent.path}/${child.name}` : child.name, handle: child as FileSystemDirectoryHandle };
         out.push(e);
